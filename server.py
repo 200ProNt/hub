@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from tools import (
+    autostart,
     bigfiles,
     cleanup,
     clipboard,
@@ -27,6 +28,8 @@ from tools import (
     filesorter,
     monitor,
     notes,
+    search,
+    trash,
 )
 from tools.registry import TOOLS
 
@@ -37,7 +40,7 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 CONTENT_TYPES = {
     ".html": "text/html",
@@ -165,7 +168,7 @@ def open_in_explorer(path: str) -> None:
 
 
 class HubHandler(BaseHTTPRequestHandler):
-    server_version = "Hub/1.0"
+    server_version = "Hub/1.1"
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
         if args and str(args[0]).startswith(("4", "5")):
@@ -287,6 +290,23 @@ class HubHandler(BaseHTTPRequestHandler):
                 return self._send_json({"items": notes.store().listing(text), "total": notes.store().count()})
             if path == "/api/monitor/snapshot":
                 return self._send_json(monitor.snapshot())
+            if path == "/api/trash/runs":
+                runs = trash.runs()
+                return self._send_json(
+                    {
+                        "runs": runs,
+                        "total_count": sum(run["count"] for run in runs),
+                        "total_size": sum(run["size"] for run in runs),
+                    }
+                )
+            if path == "/api/autostart":
+                return self._send_json(autostart.status())
+            if path == "/api/search":
+                query = parse_qs(parsed.query)
+                text = (query.get("q") or [""])[0]
+                return self._send_json(
+                    search.run(text, TOOLS, notes.store().listing(""), store().listing("", 500))
+                )
             if path == "/api/dupes/thumb":
                 query = parse_qs(parsed.query)
                 return self._send_thumb((query.get("path") or [""])[0])
@@ -316,6 +336,8 @@ class HubHandler(BaseHTTPRequestHandler):
             compare.CompareError,
             monitor.MonitorError,
             notes.NoteError,
+            trash.TrashError,
+            autostart.AutostartError,
             FileNotFoundError,
             NotADirectoryError,
             ValueError,
@@ -479,6 +501,27 @@ class HubHandler(BaseHTTPRequestHandler):
             if not notes.store().delete(str(body.get("id", ""))):
                 raise ApiError("Заметка не найдена", 404)
             return {"ok": True}
+
+        if path == "/api/trash/restore":
+            return trash.undo(str(body.get("run_id", "")))
+
+        if path == "/api/trash/purge":
+            if body.get("confirmed") is not True:
+                raise ApiError("Удаление из корзины требует подтверждения")
+            raw = body.get("run_ids")
+            if raw is None:
+                raw = [str(body.get("run_id", ""))]
+            if not isinstance(raw, list):
+                raise ApiError("Список переносов должен быть массивом")
+            return trash.purge([str(item) for item in raw])
+
+        if path == "/api/trash/empty":
+            if body.get("confirmed") is not True:
+                raise ApiError("Очистка корзины требует подтверждения")
+            return trash.empty()
+
+        if path == "/api/autostart":
+            return autostart.set_enabled(bool(body.get("enabled")))
 
         if path in ("/api/pick-folder", "/api/sorter/pick-folder", "/api/bigfiles/pick-folder",
                     "/api/cleanup/pick-folder", "/api/compare/pick-folder"):

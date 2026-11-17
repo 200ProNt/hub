@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import stat
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -167,6 +168,119 @@ def undo(run_id: str) -> dict:
         "restored_size": sum(item["size"] for item in restored),
         "errors": errors,
     }
+
+
+PREVIEW_ITEMS = 5
+
+
+def runs() -> list[dict]:
+    """Что сейчас лежит в корзине: переносы, которые ещё можно вернуть, свежие сверху."""
+    base = base_dir()
+    found: list[dict] = []
+    try:
+        journals = list(base.glob("*/journal.json"))
+    except OSError:
+        return []
+
+    for journal in journals:
+        try:
+            data = json.loads(journal.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if data.get("undone"):
+            continue
+        moved = data.get("moved") or []
+        if not moved:
+            continue
+        run_id = journal.parent.name
+        if data.get("id") and data["id"] != run_id:
+            continue
+        try:
+            fallback_time = journal.parent.stat().st_mtime
+        except OSError:
+            fallback_time = 0.0
+        found.append(
+            {
+                "run_id": run_id,
+                "source": str(data.get("source") or ""),
+                "folder": data.get("folder"),
+                "time": float(data.get("time") or fallback_time),
+                "count": len(moved),
+                "size": sum(int(item.get("size") or 0) for item in moved),
+                "items": [
+                    {
+                        "name": Path(str(item.get("from", ""))).name or "?",
+                        "kind": item.get("kind", "file"),
+                        "size": int(item.get("size") or 0),
+                    }
+                    for item in moved[:PREVIEW_ITEMS]
+                ],
+            }
+        )
+
+    found.sort(key=lambda run: run["time"], reverse=True)
+    return found
+
+
+def _remove_tree(path: Path) -> None:
+    """Убрать папку корзины вместе с файлами только для чтения."""
+
+    def on_error(function, target, _error) -> None:
+        try:
+            os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+        except OSError:
+            pass
+        function(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=on_error)
+    else:
+        # Python 3.10–3.11: обработчик ошибки получает ещё и исключение.
+        shutil.rmtree(path, onerror=lambda function, target, _info: on_error(function, target, None))
+
+
+def purge(run_ids: list[str]) -> dict:
+    """Удалить переносы насовсем. Журнал и файлы уходят, вернуть их уже нельзя."""
+    base = base_dir()
+    freed = 0
+    removed = 0
+    errors: list[dict] = []
+
+    for raw in run_ids:
+        run_id = str(raw)
+        try:
+            _journal_path(run_id)
+        except TrashError as exc:
+            errors.append({"run_id": run_id, "reason": str(exc)})
+            continue
+        run_root = base / run_id
+        try:
+            run_root.resolve().relative_to(base.resolve())
+        except (ValueError, OSError):
+            errors.append({"run_id": run_id, "reason": "папка корзины вне хранилища"})
+            continue
+        if not run_root.is_dir():
+            continue
+        size, _ = measure(run_root)
+        try:
+            _remove_tree(run_root)
+        except OSError as exc:
+            errors.append({"run_id": run_id, "reason": exc.strerror or str(exc)})
+            continue
+        freed += size
+        removed += 1
+
+    return {"removed": removed, "freed": freed, "errors": errors}
+
+
+def empty() -> dict:
+    """Полностью очистить корзину хаба."""
+    base = base_dir()
+    try:
+        folders = [entry.name for entry in base.iterdir() if entry.is_dir()]
+    except OSError:
+        return {"removed": 0, "freed": 0, "errors": []}
+    return purge(folders)
 
 
 def last_run(source: str) -> dict | None:

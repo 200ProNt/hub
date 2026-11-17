@@ -79,3 +79,81 @@ class TrashTestCase(unittest.TestCase):
                     "id": "del_legacy", "moved": [{"from": "a", "to": "b", "size": 3}]
                 }))
                 self.assertIsNone(trash.last_run("diskmap"))
+
+    def test_runs_list_what_can_still_come_back(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.dict(os.environ, {"HUB_TRASH_DIR": str(root / "trash")}):
+                first = root / "old.txt"
+                first.write_bytes(b"12345")
+                older = trash.move([str(first)], "cleanup", {"folder": str(root)})
+                second = root / "new.txt"
+                second.write_bytes(b"12")
+                newer = trash.move([str(second)], "bigfiles")
+
+                runs = trash.runs()
+                self.assertEqual([run["run_id"] for run in runs], [newer["run_id"], older["run_id"]])
+                self.assertEqual(runs[1]["source"], "cleanup")
+                self.assertEqual(runs[1]["count"], 1)
+                self.assertEqual(runs[1]["size"], 5)
+                self.assertEqual(runs[1]["items"][0]["name"], "old.txt")
+                self.assertEqual(runs[1]["folder"], str(root))
+
+                trash.undo(newer["run_id"])
+                self.assertEqual([run["run_id"] for run in trash.runs()], [older["run_id"]])
+
+    def test_broken_journal_is_skipped_but_its_folder_survives(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.dict(os.environ, {"HUB_TRASH_DIR": str(root / "trash")}):
+                broken = root / "trash" / "del_broken"
+                broken.mkdir(parents=True)
+                (broken / "journal.json").write_text("{не json")
+                self.assertEqual(trash.runs(), [])
+                self.assertTrue(broken.is_dir())
+
+    def test_purge_removes_one_run_and_reports_freed_space(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.dict(os.environ, {"HUB_TRASH_DIR": str(root / "trash")}):
+                file = root / "gone.bin"
+                file.write_bytes(b"1234567")
+                run = trash.move([str(file)], "diskmap")
+
+                result = trash.purge([run["run_id"]])
+                self.assertEqual(result["removed"], 1)
+                self.assertGreaterEqual(result["freed"], 7)
+                self.assertEqual(result["errors"], [])
+                self.assertFalse((root / "trash" / run["run_id"]).exists())
+                self.assertEqual(trash.runs(), [])
+                with self.assertRaises(trash.TrashError):
+                    trash.undo(run["run_id"])
+
+    def test_purge_refuses_unknown_and_escaping_ids(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.dict(os.environ, {"HUB_TRASH_DIR": str(root / "trash")}):
+                outside = root / "outside"
+                outside.mkdir()
+                (outside / "keep.txt").write_bytes(b"keep")
+                result = trash.purge(["../outside", "del_missing", ""])
+                self.assertEqual(result["removed"], 0)
+                self.assertEqual(len(result["errors"]), 2)
+                self.assertTrue((outside / "keep.txt").exists())
+
+    def test_empty_clears_the_whole_trash_including_broken_folders(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.dict(os.environ, {"HUB_TRASH_DIR": str(root / "trash")}):
+                file = root / "a.txt"
+                file.write_bytes(b"1234")
+                trash.move([str(file)], "cleanup")
+                broken = root / "trash" / "del_broken"
+                broken.mkdir(parents=True)
+                (broken / "journal.json").write_text("{не json")
+
+                result = trash.empty()
+                self.assertEqual(result["removed"], 2)
+                self.assertGreaterEqual(result["freed"], 4)
+                self.assertEqual(trash.runs(), [])
+                self.assertEqual(list((root / "trash").iterdir()), [])

@@ -293,6 +293,7 @@ def remove(folder: str, paths: list[str]) -> dict:
 
     journal = {
         "id": run_id,
+        "source": "duplicates",
         "folder": folder,
         "time": time.time(),
         "moved": moved,

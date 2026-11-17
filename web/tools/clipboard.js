@@ -193,6 +193,20 @@
         }, 2000);
       }
 
+      Hub.setSearchHook("clipboard", (value) => {
+        query = value || "";
+        searchInput.value = query;
+        refresh(true);
+        searchInput.focus();
+        return true;
+      });
+
+      const pendingSearch = Hub.takeSearch("clipboard");
+      if (pendingSearch) {
+        query = pendingSearch;
+        searchInput.value = pendingSearch;
+      }
+
       refresh(true);
       schedule();
 
@@ -200,6 +214,7 @@
         stopped = true;
         clearTimeout(pollTimer);
         clearTimeout(searchTimer);
+        Hub.clearSearchHook("clipboard");
       };
     },
   };

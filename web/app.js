@@ -13,6 +13,7 @@ const TOOL_ICONS = {
   broom: '<path d="M11.5 4.5l1.4 3.1 3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1-3.1-1.4 3.1-1.4z"/><path d="M17.5 13.8l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z"/><path d="M6 15.8l.6 1.3 1.3.6-1.3.6L6 19.6l-.6-1.3-1.3-.6 1.3-.6z"/>',
   pulse: '<path d="M3 12.5h4l2.2-6 3.4 11 2.4-7.2 1.8 2.2H21"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 10.8v5.4"/><circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/>',
+  undo: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5V10h5.5"/>',
   dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
 };
 
@@ -256,6 +257,87 @@ function initMotion() {
   applyMotion(saved !== "off");
 }
 
+/* ---------- Переход к результату общего поиска ---------- */
+
+Hub.pendingSearch = null;
+Hub.searchHooks = {};
+
+// Инструмент при монтировании забирает запрос, который для него оставил общий поиск.
+Hub.takeSearch = function (toolId) {
+  const pending = Hub.pendingSearch;
+  if (!pending || pending.tool !== toolId) return "";
+  Hub.pendingSearch = null;
+  return pending.query;
+};
+
+Hub.setSearchHook = function (toolId, apply) {
+  Hub.searchHooks[toolId] = apply;
+};
+
+Hub.clearSearchHook = function (toolId) {
+  delete Hub.searchHooks[toolId];
+};
+
+// Открыть инструмент и сразу применить к нему поисковый запрос.
+Hub.searchIn = function (toolId, query) {
+  const hook = Hub.searchHooks[toolId];
+  if (hook && hook(query)) return true;
+  Hub.pendingSearch = { tool: toolId, query };
+  if (Hub.activeId === toolId) {
+    // Тот же инструмент уже открыт — принудительно перемонтируем его с запросом.
+    const tool = Hub.tools.find((item) => item.id === toolId);
+    if (tool) mountTool(tool);
+  } else {
+    location.hash = `#/${toolId}`;
+  }
+  return true;
+};
+
+/* ---------- Автозапуск ---------- */
+
+function paintAutostart(state) {
+  const button = document.getElementById("autostartBtn");
+  if (!button) return;
+  const enabled = Boolean(state && state.enabled);
+  button.classList.remove("hidden");
+  button.setAttribute("aria-pressed", String(enabled));
+  button.title = enabled
+    ? "Hub запускается вместе с Windows — выключить"
+    : "Запускать Hub вместе с Windows — история буфера пишется всегда";
+  const label = document.getElementById("autostartLabel");
+  if (label) label.textContent = enabled ? "Автозапуск включён" : "Автозапуск выключен";
+}
+
+async function initAutostart() {
+  const button = document.getElementById("autostartBtn");
+  if (!button) return;
+  let state;
+  try {
+    state = await Hub.api("/api/autostart");
+  } catch {
+    button.classList.add("hidden");
+    return;
+  }
+  if (!state || !state.supported) {
+    button.classList.add("hidden");
+    return;
+  }
+  paintAutostart(state);
+  button.addEventListener("click", async () => {
+    const next = button.getAttribute("aria-pressed") !== "true";
+    button.disabled = true;
+    try {
+      const updated = await Hub.api("/api/autostart", { enabled: next });
+      paintAutostart(updated);
+      Hub.toast(next ? "Hub будет запускаться вместе с Windows" : "Автозапуск выключен");
+    } catch (error) {
+      Hub.toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 /* ---------- Меню и переключение инструментов ---------- */
 
 function navMarkup(tool) {
@@ -293,6 +375,8 @@ function mountTool(tool) {
   renderNav();
 
   const module = window.HubTools[tool.id];
+  Hub.searchHooks = {};
+  if (Hub.pendingSearch && Hub.pendingSearch.tool !== tool.id) Hub.pendingSearch = null;
   if (!module || typeof module.mount !== "function") {
     root.innerHTML = `
       <div class="soon">
@@ -303,6 +387,7 @@ function mountTool(tool) {
   }
 
   Hub.cleanup = module.mount(root) || null;
+  if (Hub.pendingSearch && Hub.pendingSearch.tool === tool.id) Hub.pendingSearch = null;
 }
 
 let routeTimer = null;
@@ -366,6 +451,7 @@ async function init() {
     { id: "diskmap", name: "Карта диска", hint: "Что сколько места занимает", icon: "pie" },
     { id: "compare", name: "Сравнение папок", hint: "Что появилось и что изменилось", icon: "diff" },
     { id: "cleanup", name: "Уборка", hint: "Старые файлы и пустые папки", icon: "broom" },
+    { id: "trash", name: "Корзина", hint: "Что можно вернуть на место", icon: "undo" },
     { id: "monitor", name: "Мониторинг ПК", hint: "Что сейчас грузит компьютер", icon: "pulse" },
     { id: "about", name: "О программе", hint: "Версия, лицензия и исходный код", icon: "info" },
   ];
@@ -384,6 +470,9 @@ async function init() {
 
   renderNav();
   route();
+  initAutostart();
+
+  if (window.HubPalette && typeof window.HubPalette.init === "function") window.HubPalette.init();
 
   // Первый инструмент уже на экране — можно убирать заставку и звать обучение.
   if (window.HubIntro && typeof window.HubIntro.ready === "function") window.HubIntro.ready();

@@ -278,11 +278,26 @@
         else if (button.dataset.act === "delete") removeNote(note);
       });
 
+      Hub.setSearchHook("notes", (value) => {
+        state.query = value || "";
+        $("#notesQuery").value = state.query;
+        render();
+        $("#notesQuery").focus();
+        return true;
+      });
+
+      const pendingSearch = Hub.takeSearch("notes");
+      if (pendingSearch) {
+        state.query = pendingSearch;
+        $("#notesQuery").value = pendingSearch;
+      }
+
       syncCount();
       load();
 
       return () => {
         state.closed = true;
+        Hub.clearSearchHook("notes");
         Hub.dismissDialog();
       };
     },

@@ -58,6 +58,14 @@
         </span>
         <span id="motionLabel">Анимации включены</span>
       </button>
+      <button class="theme-toggle hidden" id="autostartBtn" type="button" aria-pressed="false" title="Запускать Hub вместе с Windows — история буфера пишется всегда">
+        <span class="theme-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.5v9"/><path d="M7.4 6.4a7 7 0 1 0 9.2 0"/>
+          </svg>
+        </span>
+        <span id="autostartLabel">Автозапуск выключен</span>
+      </button>
       <button class="theme-toggle" id="themeBtn" type="button">
         <span class="theme-icon" aria-hidden="true">
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
@@ -94,6 +102,7 @@
 </div>
 
 <script src="intro.js"></script>
+<script src="palette.js"></script>
 <script src="app.js"></script>
 <script src="tools/clipboard.js"></script>
 <script src="tools/notes.js"></script>
@@ -103,6 +112,7 @@
 <script src="tools/diskmap.js"></script>
 <script src="tools/compare.js"></script>
 <script src="tools/cleanup.js"></script>
+<script src="tools/trash.js"></script>
 <script src="tools/monitor.js"></script>
 <script src="tools/about.js"></script>
 </body>
