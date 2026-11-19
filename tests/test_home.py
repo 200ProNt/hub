@@ -17,7 +17,7 @@ class HomeSummaryTestCase(unittest.TestCase):
         self.assertIn("stats", summary)
         self.assertIn("version", summary)
         self.assertEqual(summary["version"], server.VERSION)
-        self.assertEqual(summary["version"], "1.3.0")
+        self.assertEqual(summary["version"], "1.3.1")
 
     def test_stats_fields(self):
         summary = server.home_summary()

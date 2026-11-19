@@ -26,6 +26,8 @@ const Hub = {
   busyCount: 0,
 };
 
+window.Hub = Hub;
+
 /* ---------- Утилиты ---------- */
 
 Hub.escapeHtml = function (value) {
@@ -436,6 +438,119 @@ function initSound() {
   }
 }
 
+/* ---------- Окно настроек Hub (Settings) ---------- */
+let previousSettingsFocus = null;
+
+Hub.openSettings = function () {
+  const modal = document.getElementById("settingsModal");
+  if (!modal) return;
+  previousSettingsFocus = document.activeElement;
+  modal.classList.remove("hidden");
+  Hub.playSound("pop");
+  const firstBtn = modal.querySelector("button");
+  if (firstBtn && firstBtn.focus) firstBtn.focus();
+};
+
+Hub.closeSettings = function () {
+  const modal = document.getElementById("settingsModal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  modal.classList.add("hidden");
+  if (previousSettingsFocus && previousSettingsFocus.focus) {
+    try {
+      previousSettingsFocus.focus();
+    } catch {
+      /* элемент мог быть перемонтирован */
+    }
+  }
+};
+
+function initSettings() {
+  const openBtn = document.getElementById("openSettingsBtn");
+  if (openBtn && openBtn.addEventListener) {
+    openBtn.addEventListener("click", () => Hub.openSettings());
+  }
+
+  const closeBtn = document.getElementById("closeSettingsBtn");
+  if (closeBtn && closeBtn.addEventListener) {
+    closeBtn.addEventListener("click", () => Hub.closeSettings());
+  }
+
+  const doneBtn = document.getElementById("settingsDoneBtn");
+  if (doneBtn && doneBtn.addEventListener) {
+    doneBtn.addEventListener("click", () => Hub.closeSettings());
+  }
+
+  const modal = document.getElementById("settingsModal");
+  if (modal && modal.addEventListener) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) Hub.closeSettings();
+    });
+  }
+
+  const testSound = document.getElementById("testSoundBtn");
+  if (testSound && testSound.addEventListener) {
+    testSound.addEventListener("click", () => {
+      Hub.playSound("check");
+    });
+  }
+
+  const desktopBtn = document.getElementById("settingsDesktopShortcutBtn");
+  if (desktopBtn && desktopBtn.addEventListener) {
+    desktopBtn.addEventListener("click", async () => {
+      try {
+        const res = await Hub.api("/api/shortcuts/desktop");
+        Hub.toast(res.message || "Ярлык на Рабочем столе создан!");
+      } catch (err) {
+        Hub.toast(err.message);
+      }
+    });
+  }
+
+  const startBtn = document.getElementById("settingsStartmenuShortcutBtn");
+  if (startBtn && startBtn.addEventListener) {
+    startBtn.addEventListener("click", async () => {
+      try {
+        const res = await Hub.api("/api/shortcuts/startmenu");
+        Hub.toast(res.message || "Ярлык в меню «Пуск» создан!");
+      } catch (err) {
+        Hub.toast(err.message);
+      }
+    });
+  }
+
+  const backupBtn = document.getElementById("settingsBackupBtn");
+  if (backupBtn && backupBtn.addEventListener) {
+    backupBtn.addEventListener("click", async () => {
+      try {
+        Hub.setBusy(true, "Создаю резервную копию…");
+        const res = await Hub.api("/api/system/backup", {});
+        Hub.toast(res.message || "Резервная копия создана!");
+      } catch (err) {
+        Hub.toast(err.message);
+      } finally {
+        Hub.setBusy(false);
+      }
+    });
+  }
+
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "," || e.key === "б" || e.key === "Б")) {
+        e.preventDefault();
+        const m = document.getElementById("settingsModal");
+        if (m && !m.classList.contains("hidden")) Hub.closeSettings();
+        else Hub.openSettings();
+      } else if (e.key === "Escape") {
+        const m = document.getElementById("settingsModal");
+        if (m && !m.classList.contains("hidden")) {
+          e.preventDefault();
+          Hub.closeSettings();
+        }
+      }
+    });
+  }
+}
+
 /* ---------- Переход к результату общего поиска ---------- */
 
 Hub.pendingSearch = null;
@@ -616,16 +731,25 @@ async function init() {
   initGlass();
   initSound();
   initMotion();
+  initSettings();
 
-  document.getElementById("themeBtn").addEventListener("click", () => {
-    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-  });
+  const themeBtn = document.getElementById("themeBtn");
+  if (themeBtn && themeBtn.addEventListener) {
+    themeBtn.addEventListener("click", () => {
+      applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    });
+  }
 
-  document.getElementById("motionBtn").addEventListener("click", () => {
-    applyMotion(document.documentElement.dataset.motion === "off");
-  });
+  const motionBtn = document.getElementById("motionBtn");
+  if (motionBtn && motionBtn.addEventListener) {
+    motionBtn.addEventListener("click", () => {
+      applyMotion(document.documentElement.dataset.motion === "off");
+    });
+  }
 
-  window.addEventListener("hashchange", route);
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("hashchange", route);
+  }
 
   const fallbackTools = [
     { id: "home", name: "Главная", hint: "Сводка дня, виджеты и быстрые действия", icon: "home" },

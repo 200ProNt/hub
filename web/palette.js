@@ -8,6 +8,7 @@
     note: '<rect x="4.5" y="3.5" width="15" height="17" rx="3"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/>',
     clipboard: '<rect x="6" y="4.5" width="12" height="16" rx="2.5"/><path d="M9.5 4.5V3.6A1.1 1.1 0 0 1 10.6 2.5h2.8a1.1 1.1 0 0 1 1.1 1.1v.9"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   };
 
   let overlay = null;
@@ -83,9 +84,19 @@
 
   function toolEntries(query) {
     const needle = query.trim().toLowerCase();
-    return (Hub.tools || [])
+    const list = (Hub.tools || [])
       .filter((tool) => !needle || `${tool.name} ${tool.hint || ""}`.toLowerCase().includes(needle))
       .map((tool) => ({ kind: "tool", tool }));
+
+    const settingsWords = ["настройки", "параметры", "тема", "стекло", "звук", "акцент", "settings", "options"];
+    if (!needle || settingsWords.some((w) => needle.includes(w) || w.includes(needle))) {
+      list.push({
+        kind: "settings",
+        title: "Настройки Hub",
+        hint: "Оформление, стекло Fluent, микро-звуки, автозапуск (Ctrl+,)",
+      });
+    }
+    return list;
   }
 
   function setGroups(next) {
@@ -102,6 +113,10 @@
     if (item.kind === "tool") {
       title = item.tool.name;
       meta = item.tool.hint || "";
+    } else if (item.kind === "settings") {
+      title = item.title;
+      meta = item.hint || "";
+      iconKind = "settings";
     } else if (item.kind === "note") {
       title = item.note.title || "Без заголовка";
       meta = item.note.snippet || "";
@@ -166,6 +181,10 @@
     close();
     if (item.kind === "tool") {
       location.hash = `#/${item.tool.id}`;
+      return;
+    }
+    if (item.kind === "settings") {
+      if (typeof Hub.openSettings === "function") Hub.openSettings();
       return;
     }
     if (item.kind === "note") Hub.searchIn("notes", query);
