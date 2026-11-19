@@ -1838,6 +1838,72 @@ body {
 
 .about-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 
+.about-changelog { margin-top: 12px; padding: 18px 20px; }
+
+.about-changelog h3 {
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.about-releases {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.about-release {
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+
+.about-release.is-latest { border-left-color: var(--accent); }
+
+.about-release-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.about-release-version {
+  font-size: 13.5px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+
+.about-release-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.about-release-date {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.about-release-items {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.about-release-empty {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
 .about-license {
   margin-top: 12px;
   padding: 0;

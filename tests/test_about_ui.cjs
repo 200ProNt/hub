@@ -14,6 +14,19 @@ const ABOUT = {
   readme: 'C:\\hub\\README.md',
   tools: 10,
   python: '3.14.10',
+  changes: [
+    {
+      version: '1.1.1',
+      date: '2026-11-17',
+      items: ['История версий на странице «О программе».'],
+    },
+    {
+      version: '1.1.0',
+      date: '2026-10-02',
+      items: ['Корзина стала вкладкой.', 'Поиск по Ctrl+K.', '<b>не разметка</b>'],
+    },
+    { version: '1.0.0', date: '2026-09-01', items: ['Первая версия.'] },
+  ],
 };
 
 function setup() {
@@ -37,6 +50,14 @@ function setup() {
     version: '9.9.9',
     tools: new Array(9).fill({ id: 'x' }),
     toast() {},
+    escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    },
     async api(url, body) {
       calls.push({ url, body });
       if (url === '/api/about') return ABOUT;
@@ -57,6 +78,7 @@ test('about page shows version, author, tools and license', async () => {
   const s = setup();
   await settle();
   assert.ok(s.root.innerHTML.includes('devrin'));
+  assert.ok(s.root.innerHTML.includes('История версий'));
   assert.equal(s.node('#aboutVersion').textContent, 'версия 1.0.0');
   assert.equal(s.node('#aboutVersionValue').textContent, '1.0.0');
   assert.equal(s.node('#aboutTools').textContent, '10');
@@ -91,4 +113,89 @@ test('an unmounted page cannot open folders', async () => {
   s.cleanup();
   await s.node('#aboutOpen').listeners.click();
   assert.ok(!s.calls.some((call) => call.url === '/api/open'));
+});
+
+test('release history is rendered newest first with the current badge', async () => {
+  const s = setup();
+  await settle();
+  const markup = s.node('#aboutReleases').innerHTML;
+  assert.ok(markup.includes('1.1.1'));
+  assert.ok(markup.includes('1.1.0'));
+  assert.ok(markup.includes('1.0.0'));
+  assert.ok(markup.indexOf('1.1.1') < markup.indexOf('1.1.0'));
+  assert.ok(markup.includes('<span class="about-release-badge">сейчас</span>'));
+  assert.ok(markup.includes('17 ноября 2026'));
+  assert.ok(markup.includes('2 октября 2026'));
+  assert.ok(markup.includes('is-latest'));
+});
+
+test('release items are escaped and the markup is not executed', async () => {
+  const s = setup();
+  await settle();
+  const markup = s.node('#aboutReleases').innerHTML;
+  assert.ok(!markup.includes('<b>не разметка</b>'));
+  assert.ok(markup.includes('&lt;b&gt;не разметка&lt;/b&gt;'));
+});
+
+test('history list keeps the empty state when changes are absent', async () => {
+  const nodes = new Map();
+  const node = (key) => {
+    if (!nodes.has(key)) {
+      nodes.set(key, {
+        innerHTML: '',
+        textContent: '',
+        title: '',
+        listeners: {},
+        addEventListener(type, fn) { this.listeners[type] = fn; },
+        querySelector(selector) { return node(`${key} ${selector}`); },
+      });
+    }
+    return nodes.get(key);
+  };
+  const Hub = {
+    version: '1.1.1',
+    tools: [],
+    toast() {},
+    escapeHtml(value) {
+      return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    },
+    async api(url) {
+      if (url === '/api/about') return { name: 'Hub', version: '1.1.1', tools: 0 };
+      return { ok: true };
+    },
+  };
+  const context = { window: { HubTools: {} }, Hub, console };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../web/tools/about.js'), 'utf8'), context);
+  context.window.HubTools.about.mount({ innerHTML: '', querySelector: node });
+  await settle();
+  assert.equal(node('#aboutReleases').innerHTML, '<li class="about-release-empty">История пока пустая.</li>');
+});
+
+test('initial render shows loading state while waiting for api', () => {
+  const nodes = new Map();
+  const node = (key) => {
+    if (!nodes.has(key)) {
+      nodes.set(key, {
+        innerHTML: '',
+        textContent: '',
+        title: '',
+        listeners: {},
+        addEventListener(type, fn) { this.listeners[type] = fn; },
+        querySelector(selector) { return node(`${key} ${selector}`); },
+      });
+    }
+    return nodes.get(key);
+  };
+  const Hub = {
+    version: '1.1.1',
+    tools: [],
+    toast() {},
+    escapeHtml(value) { return String(value); },
+    api() { return new Promise(() => {}); },
+  };
+  const context = { window: { HubTools: {} }, Hub, console };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../web/tools/about.js'), 'utf8'), context);
+  context.window.HubTools.about.mount({ innerHTML: '', querySelector: node });
+  assert.equal(node('#aboutReleases').innerHTML, '<li class="about-release-empty">Загружаю…</li>');
+  assert.equal(node('#aboutLicenseText').textContent, 'Загружаю…');
 });

@@ -34,6 +34,27 @@ class AboutTestCase(unittest.TestCase):
     def test_version_is_exposed_to_the_menu(self):
         self.assertRegex(server.VERSION, r"^\d+\.\d+\.\d+$")
 
+    def test_changelog_starts_with_the_current_version(self):
+        info = server.about_info()
+        changes = info["changes"]
+        self.assertIsInstance(changes, list)
+        self.assertGreaterEqual(len(changes), 2)
+        self.assertEqual(changes[0]["version"], server.VERSION)
+
+    def test_changelog_entries_are_well_formed(self):
+        for release in server.about_info()["changes"]:
+            self.assertRegex(release["version"], r"^\d+\.\d+\.\d+$")
+            self.assertRegex(release["date"], r"^\d{4}-\d{2}-\d{2}$")
+            self.assertIsInstance(release["items"], list)
+            self.assertTrue(release["items"])
+            for item in release["items"]:
+                self.assertIsInstance(item, str)
+                self.assertTrue(item.strip())
+
+    def test_changelog_versions_go_newest_first(self):
+        versions = [release["version"] for release in server.about_info()["changes"]]
+        self.assertEqual(versions, sorted(versions, reverse=True))
+
 
 if __name__ == "__main__":
     unittest.main()

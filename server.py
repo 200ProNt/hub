@@ -40,7 +40,34 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.1.0"
+VERSION = "1.1.1"
+
+# История версий для вкладки «О программе». Новые записи — сверху.
+CHANGELOG = [
+    {
+        "version": "1.1.1",
+        "date": "2026-11-17",
+        "items": [
+            "В «О программе» появилась история версий: что менялось и когда.",
+        ],
+    },
+    {
+        "version": "1.1.0",
+        "date": "2026-11-17",
+        "items": [
+            "Корзина стала отдельной вкладкой: видно каждый перенос, его можно вернуть или удалить навсегда.",
+            "Поиск по всему хабу по Ctrl+K: инструменты, заметки и буфер обмена.",
+            "Автозапуск вместе с Windows переключателем внизу меню.",
+        ],
+    },
+    {
+        "version": "1.0.0",
+        "date": "2026-11-17",
+        "items": [
+            "Первая версия: буфер обмена, заметки, сортировка файлов, дубликаты, карта диска, сравнение папок, уборка, мониторинг ПК и «О программе».",
+        ],
+    },
+]
 
 CONTENT_TYPES = {
     ".html": "text/html",
@@ -106,6 +133,7 @@ def about_info() -> dict:
         "readme": str(BASE_DIR / "README.md"),
         "tools": len(TOOLS),
         "python": platform.python_version(),
+        "changes": CHANGELOG,
     }
 
 
@@ -168,7 +196,7 @@ def open_in_explorer(path: str) -> None:
 
 
 class HubHandler(BaseHTTPRequestHandler):
-    server_version = "Hub/1.1"
+    server_version = "Hub/1.1.1"
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
         if args and str(args[0]).startswith(("4", "5")):

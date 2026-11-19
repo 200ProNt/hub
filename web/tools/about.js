@@ -68,12 +68,62 @@
       </section>
     </div>
 
+    <section class="card about-changelog" id="aboutChangelog">
+      <h3>История версий</h3>
+      <ol class="about-releases" id="aboutReleases">
+        <li class="about-release-empty">Загружаю…</li>
+      </ol>
+    </section>
+
     <details class="card about-license" id="aboutLicense">
       <summary>Текст лицензии MIT</summary>
       <pre id="aboutLicenseText">Загружаю…</pre>
     </details>
 
     <p class="about-foot">© 2026 devrin · MIT License · сделано для себя и друзей</p>`;
+
+  const MONTHS = [
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+  ];
+
+  function formatDate(value) {
+    const parts = String(value || "").split("-");
+    if (parts.length !== 3) return String(value || "");
+    const month = MONTHS[Number(parts[1]) - 1];
+    if (!month) return String(value);
+    return `${Number(parts[2])} ${month} ${parts[0]}`;
+  }
+
+  function renderReleases(changes, current) {
+    const escape = Hub.escapeHtml;
+    const list = Array.isArray(changes) ? changes : [];
+    if (!list.length) {
+      return '<li class="about-release-empty">История пока пустая.</li>';
+    }
+    return list
+      .map((release, index) => {
+        const version = String(release?.version || "—");
+        const date = release?.date ? formatDate(release.date) : "";
+        const items = Array.isArray(release?.items) ? release.items : [];
+        const badge = version === current
+          ? '<span class="about-release-badge">сейчас</span>'
+          : "";
+        const points = items
+          .map((item) => `<li>${escape(item)}</li>`)
+          .join("");
+        return `
+          <li class="about-release${index === 0 ? " is-latest" : ""}">
+            <div class="about-release-head">
+              <span class="about-release-version">${escape(version)}</span>
+              ${badge}
+              ${date ? `<span class="about-release-date">${escape(date)}</span>` : ""}
+            </div>
+            <ul class="about-release-items">${points}</ul>
+          </li>`;
+      })
+      .join("");
+  }
 
   window.HubTools.about = {
     mount(root) {
@@ -94,7 +144,10 @@
         $("#aboutFolder").textContent = data?.folder || "папка проекта";
         $("#aboutFolder").title = data?.folder || "";
         $("#aboutLicenseText").textContent = data?.license_text
-          || "Файл LICENSE не найден рядом с программой.";
+          || (data ? "Файл LICENSE не найден рядом с программой." : "Загружаю…");
+        $("#aboutReleases").innerHTML = data
+          ? renderReleases(data.changes, version)
+          : '<li class="about-release-empty">Загружаю…</li>';
       }
 
       async function openFolder() {
