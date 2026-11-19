@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import socket
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from tools import (
     autostart,
     bigfiles,
+    checksum,
     cleanup,
     clipboard,
     compare,
@@ -30,9 +32,12 @@ from tools import (
     images,
     monitor,
     notes,
+    qrdrop,
+    renamer,
     search,
     shortcuts,
     trash,
+    tray,
 )
 from tools.registry import TOOLS
 
@@ -43,10 +48,21 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.3.1.2"
+VERSION = "1.3.2"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.3.2",
+        "date": "2026-11-19",
+        "items": [
+            "Интеграция в системный трей Windows: значок Hub у часов с меню быстрого доступа («Открыть Hub», «Быстрая заметка», «Мониторинг», «QR-Drop», «Выход»).",
+            "Глобальный хоткей Windows (Win+Alt+H / Ctrl+Shift+H): моментальный вызов хаба из любого приложения, игры или проводника поверх окон.",
+            "Локальный обмен с телефоном по Wi-Fi (QR-Drop): мобильный веб-интерфейс (/drop) для передачи текста из буфера и файлов со смартфона на ПК и обратно по QR-коду.",
+            "Пакетное переименование файлов (Batch Renamer): массовое переименование по правилам (замена, нумерация, регистр, транслитерация, даты) с живым предпросмотром, защитой от коллизий и отменой (Undo).",
+            "Хэши и безопасность файлов (Checksum & Crypto): расчет контрольных сумм SHA-256, MD5, SHA-1 потоковым чтением, проверка подлинности файлов и генератор надёжных паролей.",
+        ],
+    },
     {
         "version": "1.3.1.2",
         "date": "2026-11-19",
@@ -313,6 +329,40 @@ def pick_folder(initial: str = "") -> str:
     return result["path"]
 
 
+def pick_file(initial: str = "") -> str:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError("Диалог выбора файла недоступен — впиши путь вручную") from exc
+
+    result = {"path": ""}
+
+    def run_dialog() -> None:
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.attributes("-topmost", True)
+        except Exception:  # noqa: BLE001
+            pass
+        root.update()
+        try:
+            result["path"] = filedialog.askopenfilename(
+                parent=root,
+                initialdir=initial or str(Path.home()),
+                title="Выбери файл",
+            )
+        finally:
+            root.destroy()
+
+    worker = threading.Thread(target=run_dialog, daemon=True)
+    worker.start()
+    worker.join(timeout=300)
+    if worker.is_alive():
+        raise ApiError("Диалог не ответил — впиши путь вручную")
+    return result["path"]
+
+
 def open_in_explorer(path: str) -> None:
     target = Path(path).expanduser()
     if not target.exists():
@@ -338,12 +388,30 @@ class HubHandler(BaseHTTPRequestHandler):
         if args and str(args[0]).startswith(("4", "5")):
             sys.stderr.write(f"[hub] {fmt % args}\n")
 
+    def _is_private_ip(self, hostname: str) -> bool:
+        if hostname in ("127.0.0.1", "localhost", "[::1]"):
+            return True
+        try:
+            parts = [int(p) for p in hostname.split(".")]
+            if len(parts) == 4 and all(0 <= p <= 255 for p in parts):
+                if parts[0] == 10:
+                    return True
+                if parts[0] == 172 and 16 <= parts[1] <= 31:
+                    return True
+                if parts[0] == 192 and parts[1] == 168:
+                    return True
+                if parts[0] == 127:
+                    return True
+        except Exception:
+            pass
+        return False
+
     def _is_allowed_host(self) -> bool:
         host = (self.headers.get("Host") or "").strip().lower()
         if not host:
             return False
         hostname = host.split(":")[0]
-        return hostname in ("127.0.0.1", "localhost", "[::1]")
+        return self._is_private_ip(hostname)
 
     def _is_allowed_origin(self) -> bool:
         # Проверка Sec-Fetch-Site (отправляется браузерами на все запросы)
@@ -355,14 +423,14 @@ class HubHandler(BaseHTTPRequestHandler):
         origin = (self.headers.get("Origin") or "").strip().lower()
         if origin:
             parsed = urlparse(origin)
-            if parsed.hostname not in ("127.0.0.1", "localhost", "[::1]"):
+            if not self._is_private_ip(parsed.hostname or ""):
                 return False
 
         # Проверка Referer
         referer = (self.headers.get("Referer") or "").strip().lower()
         if referer:
             parsed = urlparse(referer)
-            if parsed.hostname not in ("127.0.0.1", "localhost", "[::1]"):
+            if not self._is_private_ip(parsed.hostname or ""):
                 return False
 
         return True
@@ -593,6 +661,34 @@ class HubHandler(BaseHTTPRequestHandler):
                 return self._send_json(
                     search.run(text, TOOLS, notes.store().listing(""), store().listing("", 500))
                 )
+            if path == "/drop":
+                return self._send_file(WEB_DIR / "drop.html")
+            if path == "/api/renamer/last-run":
+                return self._send_json({"last_run": renamer.last_run()})
+            if path == "/api/drop/info":
+                return self._send_json(qrdrop.get_info(self.server.server_port))
+            if path == "/api/drop/latest-text":
+                texts = qrdrop.list_incoming_texts(1)
+                try:
+                    clip_items = store().listing("", 1)
+                    clip_text = clip_items[0]["text"] if clip_items else ""
+                except Exception:
+                    clip_text = ""
+                return self._send_json({
+                    "latest_text": texts[0]["text"] if texts else clip_text,
+                    "clipboard": clip_text,
+                })
+            if path == "/api/drop/download":
+                query = parse_qs(parsed.query)
+                name = (query.get("name") or [""])[0]
+                kind = (query.get("type") or ["shared"])[0]
+                folder = qrdrop.INCOMING_DIR if kind == "incoming" else qrdrop.SHARED_DIR
+                target = folder / qrdrop._sanitize_filename(name)
+                if target.is_file():
+                    return self._send_bytes_attachment(target.read_bytes(), target.name)
+                return self._send_json({"error": "Файл не найден"}, 404)
+            if path == "/api/tray/status":
+                return self._send_json(tray.status())
             if path == "/api/dupes/thumb":
                 query = parse_qs(parsed.query)
                 return self._send_thumb((query.get("path") or [""])[0])
@@ -606,6 +702,43 @@ class HubHandler(BaseHTTPRequestHandler):
         if not self._security_check():
             return
         path = urlparse(self.path).path
+        if path == "/api/drop/upload":
+            try:
+                content_type = self.headers.get("Content-Type", "")
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > qrdrop.MAX_FILE_BYTES:
+                    return self._send_json({"error": "Файл слишком большой (максимум 100 МБ)"}, 413)
+
+                if "multipart/form-data" in content_type:
+                    boundary = content_type.split("boundary=")[-1].strip().encode("utf-8")
+                    raw_body = self.rfile.read(length)
+                    parts = raw_body.split(b"--" + boundary)
+                    saved_files = []
+                    for part in parts:
+                        if b'filename="' in part:
+                            headers_part, file_data = part.split(b"\r\n\r\n", 1)
+                            if file_data.endswith(b"\r\n"):
+                                file_data = file_data[:-2]
+                            match = re.search(rb'filename="([^"]+)"', headers_part)
+                            if match:
+                                filename = match.group(1).decode("utf-8", errors="replace")
+                                res = qrdrop.save_incoming_file(filename, file_data)
+                                saved_files.append(res)
+                    if saved_files:
+                        return self._send_json({"saved": saved_files, "ok": True})
+                    return self._send_json({"error": "Файл не найден в форме"}, 400)
+
+                raw_filename = self.headers.get("X-Filename")
+                if raw_filename:
+                    filename = unquote(raw_filename)
+                    data = self.rfile.read(length)
+                    res = qrdrop.save_incoming_file(filename, data)
+                    return self._send_json({"file": res, "ok": True})
+
+                return self._send_json({"error": "Не указан заголовок X-Filename или multipart/form-data"}, 400)
+            except Exception as e:
+                return self._send_json({"error": str(e)}, 500)
+
         try:
             body = self._read_json()
             payload = self._dispatch_post(path, body)
@@ -862,13 +995,75 @@ class HubHandler(BaseHTTPRequestHandler):
                 raise ApiError(str(exc), 400) from exc
 
         if path in ("/api/pick-folder", "/api/sorter/pick-folder", "/api/bigfiles/pick-folder",
-                    "/api/cleanup/pick-folder", "/api/compare/pick-folder", "/api/images/pick-folder"):
+                    "/api/cleanup/pick-folder", "/api/compare/pick-folder", "/api/images/pick-folder",
+                    "/api/renamer/pick-folder"):
             return {"folder": pick_folder(str(body.get("initial", "")))}
 
+        if path in ("/api/pick-file", "/api/checksum/pick-file", "/api/drop/pick-file"):
+            return {"file": pick_file(str(body.get("initial", "")))}
+
         if path in ("/api/open", "/api/sorter/open", "/api/bigfiles/open",
-                    "/api/cleanup/open", "/api/compare/open", "/api/images/open"):
+                    "/api/cleanup/open", "/api/compare/open", "/api/images/open",
+                    "/api/renamer/open", "/api/drop/open"):
             open_in_explorer(str(body.get("path", "")))
             return {"ok": True}
+
+        if path == "/api/renamer/scan":
+            return renamer.scan(
+                str(body.get("folder", "")),
+                str(body.get("filter", "*")),
+                bool(body.get("recursive", False)),
+            )
+
+        if path == "/api/renamer/preview":
+            return renamer.preview(
+                str(body.get("folder", "")),
+                body.get("files") or [],
+                body.get("rule") or {},
+            )
+
+        if path == "/api/renamer/apply":
+            return renamer.apply(
+                str(body.get("folder", "")),
+                body.get("renames") or [],
+            )
+
+        if path == "/api/renamer/undo":
+            return renamer.undo(body.get("run_id"))
+
+        if path == "/api/checksum/file":
+            return checksum.compute_file_hashes(
+                str(body.get("path", "")),
+                body.get("algorithms"),
+            )
+
+        if path == "/api/checksum/text":
+            return checksum.compute_text_hash(str(body.get("text", "")))
+
+        if path == "/api/checksum/password":
+            opts = {
+                k: v for k, v in body.items()
+                if k in ("length", "uppercase", "lowercase", "digits", "symbols",
+                         "avoid_ambiguous", "mode", "words_count", "separator")
+            }
+            return checksum.generate_password(**opts)
+
+        if path == "/api/drop/send-text":
+            return qrdrop.save_incoming_text(str(body.get("text", "")), str(body.get("source", "phone")))
+
+        if path == "/api/drop/share-file":
+            return qrdrop.share_file(str(body.get("path", "")))
+
+        if path == "/api/drop/unshare-file":
+            return {"ok": qrdrop.unshare_file(str(body.get("name", "")))}
+
+        if path == "/api/tray/toggle":
+            enabled = bool(body.get("enabled", True))
+            if enabled:
+                tray.start_tray(self.server.server_port)
+            else:
+                tray.stop_tray()
+            return tray.status()
 
         if path == "/api/system/shutdown":
             def _stop() -> None:
@@ -930,13 +1125,22 @@ def main() -> None:
 
     open_browser = "--no-browser" not in sys.argv
     port = find_port()
+    local_ip = qrdrop.get_local_ip()
     url = f"http://127.0.0.1:{port}/"
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), HubHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), HubHandler)
     server.daemon_threads = True
 
+    # Запуск иконки в системном трее Windows и глобальных хоткеев (Win+Alt+H)
+    if sys.platform == "win32":
+        try:
+            tray.start_tray(port)
+        except Exception:
+            pass
+
     print("Hub запущен")
-    print(f"  Адрес: {url}")
+    print(f"  Адрес на ПК: {url}")
+    print(f"  Обмен с телефоном (QR-Drop): http://{local_ip}:{port}/drop")
     print(f"  История буфера: {DATA_DIR / 'clipboard.json'}")
     print("  Закрыть: Ctrl+C или закрой это окно")
     print()
@@ -949,6 +1153,11 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nОстанавливаюсь…")
     finally:
+        if sys.platform == "win32":
+            try:
+                tray.stop_tray()
+            except Exception:
+                pass
         watcher_instance.stop()
         server.server_close()
 

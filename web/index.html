@@ -61,7 +61,7 @@
         <span class="nav-name">Настройки</span>
         <span class="settings-hint">Ctrl+,</span>
       </button>
-      <p class="storage-note">Всё хранится только на этом компьютере · v1.3.1.2</p>
+      <p class="storage-note">Всё хранится только на этом компьютере · v1.3.2</p>
     </div>
   </aside>
 
@@ -192,6 +192,31 @@
         <h3 class="settings-group-title">Система и Windows</h3>
         <div class="settings-item">
           <div class="settings-item-info">
+            <span class="settings-item-label">Системный трей Windows</span>
+            <span class="settings-item-hint">Значок Hub рядом с часами и быстрое меню по правому клику</span>
+          </div>
+          <button class="theme-toggle" id="trayToggleBtn" type="button" aria-pressed="true" title="Иконка Hub в области уведомлений Windows">
+            <span class="theme-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="3"/><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/>
+              </svg>
+            </span>
+            <span id="trayToggleLabel">Трей включён</span>
+          </button>
+        </div>
+
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">Глобальный хоткей вызова</span>
+            <span class="settings-item-hint">Моментальное открытие Hub из любой программы поверх всех окон</span>
+          </div>
+          <div class="settings-item-actions">
+            <span class="hotkey-pill"><kbd>Win</kbd> + <kbd>Alt</kbd> + <kbd>H</kbd></span>
+          </div>
+        </div>
+
+        <div class="settings-item">
+          <div class="settings-item-info">
             <span class="settings-item-label">Автозапуск с Windows</span>
             <span class="settings-item-hint">Автоматический запуск Hub при входе пользователя</span>
           </div>
@@ -247,12 +272,15 @@
 <script src="tools/home.js"></script>
 <script src="tools/clipboard.js"></script>
 <script src="tools/notes.js"></script>
+<script src="tools/qrdrop.js"></script>
 <script src="tools/sorter.js"></script>
+<script src="tools/renamer.js"></script>
 <script src="tools/dupes.js"></script>
 <script src="tools/bigfiles.js"></script>
 <script src="tools/diskmap.js"></script>
 <script src="tools/compare.js"></script>
 <script src="tools/images.js"></script>
+<script src="tools/checksum.js"></script>
 <script src="tools/cleanup.js"></script>
 <script src="tools/trash.js"></script>
 <script src="tools/monitor.js"></script>

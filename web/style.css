@@ -3567,3 +3567,446 @@ html[data-motion="off"] .clip {
   }
 }
 
+/* ==========================================================================
+   v1.3.2: Новые инструменты (QR-Drop, Переименование, Хэши и пароли)
+   ========================================================================== */
+
+/* ---------- Хоткеи и бейджи настроек ---------- */
+.hotkey-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text);
+}
+.hotkey-pill kbd {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 600;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.1);
+}
+
+/* ---------- 1. QR-Drop (Обмен с телефоном) ---------- */
+.qrdrop-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .qrdrop-layout { grid-template-columns: 1fr; }
+}
+.qrdrop-connect-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.qrdrop-qr-wrapper {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.qrdrop-qr-box {
+  background: #ffffff;
+  color: #0f121a;
+  padding: 14px;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  display: grid;
+  place-items: center;
+}
+.qrdrop-url-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.qrdrop-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+.qrdrop-url-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  word-break: break-all;
+  color: var(--text);
+}
+.qrdrop-hints {
+  width: 100%;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.qrdrop-hint-item {
+  display: flex;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.hint-bullet {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+}
+.qrdrop-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.drop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.drop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  transition: background 0.15s;
+}
+.drop-row:hover { background: var(--row-hover); }
+.drop-row-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.drop-row-name { font-size: 13.5px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.drop-row-size { font-size: 11.5px; color: var(--muted); }
+.drop-row-actions { display: flex; gap: 6px; flex: none; }
+.drop-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 18px 0; }
+.drop-text-item {
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.drop-text-body {
+  font-size: 13.5px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.drop-text-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.drop-text-time { font-size: 11px; color: var(--faint); }
+
+/* ---------- 2. Пакетное переименование файлов ---------- */
+.renamer-layout { display: flex; flex-direction: column; gap: 16px; }
+.renamer-bar { padding: 16px 20px; }
+.renamer-path-field { margin-bottom: 12px; }
+.renamer-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.renamer-filter-input { flex: 1; min-width: 200px; height: 38px; }
+.renamer-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--card-soft);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+.renamer-tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.renamer-tab:hover { color: var(--text); }
+.renamer-tab.is-active {
+  background: var(--card);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.rule-inputs-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.rule-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+.rule-field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.rule-field input, .renamer-select {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card-soft);
+  color: var(--text);
+  font-size: 13.5px;
+  outline: none;
+}
+.rule-field input:focus, .renamer-select:focus { border-color: var(--accent); }
+.rule-checks { display: flex; gap: 14px; align-items: center; padding-bottom: 10px; }
+.check-inline { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--text); }
+.check-inline input { cursor: pointer; accent-color: var(--accent); }
+.rule-note { font-size: 13.5px; color: var(--muted); padding: 8px 0; }
+.renamer-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.renamer-stats { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.renamer-table-wrapper {
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  max-height: 480px;
+  overflow-y: auto;
+}
+.ren-head-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--faint);
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.03);
+}
+.ren-row {
+  display: flex;
+  align-items: center;
+  padding: 9px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.ren-row:last-child { border-bottom: none; }
+.ren-row:hover { background: var(--row-hover); }
+.ren-old-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.ren-arrow { width: 30px; text-align: center; color: var(--faint); flex: none; font-weight: 700; }
+.ren-new-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; color: var(--text); }
+.ren-new-name.is-changed { color: var(--accent); }
+.ren-status { width: 110px; text-align: right; flex: none; }
+.ren-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ren-badge.ok { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.ren-badge.unchanged { background: rgba(148, 163, 184, 0.15); color: var(--muted); }
+.ren-badge.conflict { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+.renamer-empty { padding: 36px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ---------- 3. Хэши и пароли (Checksum & Crypto) ---------- */
+.crypto-layout { display: flex; flex-direction: column; gap: 16px; }
+.crypto-nav-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--card-soft);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+.crypto-tab-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.crypto-tab-btn:hover { color: var(--text); }
+.crypto-tab-btn.is-active {
+  background: var(--card);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.crypto-panel { display: none; }
+.crypto-panel.is-active { display: block; animation: fadeIn 0.2s ease both; }
+.crypto-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 28px 16px;
+  text-align: center;
+  background: var(--card-soft);
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+.crypto-dropzone.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.dropzone-icon { font-size: 32px; margin-bottom: 8px; }
+.dropzone-text { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.dropzone-hint { font-size: 12px; color: var(--muted); }
+.crypto-file-meta {
+  padding: 10px 14px;
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 14px;
+  color: var(--text);
+}
+.crypto-hash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.hash-card {
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hash-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.hash-alg { font-size: 12px; font-weight: 700; color: var(--accent); }
+.hash-val {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+  background: var(--card);
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.hash-verify-box {
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.verify-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.verify-verdict { margin-top: 8px; }
+.verdict-tag {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.verdict-tag.match { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.verdict-tag.mismatch { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+/* Генератор паролей */
+.pwd-display-card {
+  background: var(--card-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.pwd-val-wrapper {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.pwd-val {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  word-break: break-all;
+  user-select: all;
+}
+.pwd-meter {
+  height: 6px;
+  background: rgba(0,0,0,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.pwd-meter-bar {
+  height: 100%;
+  width: 0%;
+  transition: width 0.25s ease, background-color 0.25s ease;
+}
+.pwd-meter-bar.weak { background: #ef4444; }
+.pwd-meter-bar.medium { background: #f59e0b; }
+.pwd-meter-bar.strong { background: #10b981; }
+.pwd-meter-bar.very_strong { background: #8b5cf6; }
+.pwd-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pwd-entropy { font-size: 12.5px; color: var(--muted); }
+.pwd-settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pwd-setting-item { display: flex; flex-direction: column; gap: 8px; }
+.pwd-label { font-size: 13.5px; font-weight: 550; color: var(--text); }
+.pwd-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+

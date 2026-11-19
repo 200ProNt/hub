@@ -16,6 +16,9 @@ const TOOL_ICONS = {
   pulse: '<path d="M3 12.5h4l2.2-6 3.4 11 2.4-7.2 1.8 2.2H21"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 10.8v5.4"/><circle cx="12" cy="7.7" r="1" fill="currentColor" stroke="none"/>',
   undo: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5V10h5.5"/>',
+  renamer: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  checksum: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="2.5"/><path d="M12 13.5v3"/>',
+  qrdrop: '<rect x="5" y="2" width="14" height="20" rx="3"/><circle cx="12" cy="18" r="1" fill="currentColor"/><path d="M8.5 8.5a5 5 0 0 1 7 0M10 11.5a2.8 2.8 0 0 1 4 0"/>',
   dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
 };
 
@@ -632,6 +635,51 @@ async function initAutostart() {
   });
 }
 
+/* ---------- Трей Windows ---------- */
+
+function paintTray(state) {
+  const button = document.getElementById("trayToggleBtn");
+  if (!button) return;
+  const running = Boolean(state && state.running);
+  button.setAttribute("aria-pressed", String(running));
+  const label = document.getElementById("trayToggleLabel");
+  if (label) label.textContent = running ? "Трей включён" : "Трей выключен";
+}
+
+async function initTray() {
+  const button = document.getElementById("trayToggleBtn");
+  if (!button) return;
+  let state;
+  try {
+    state = await Hub.api("/api/tray/status");
+  } catch {
+    return;
+  }
+  if (!state || !state.supported) {
+    if (typeof button.closest === "function") {
+      button.closest(".settings-item")?.classList.add("hidden");
+    } else {
+      button.classList.add("hidden");
+    }
+    return;
+  }
+  paintTray(state);
+  button.addEventListener("click", async () => {
+    const next = button.getAttribute("aria-pressed") !== "true";
+    button.disabled = true;
+    try {
+      const updated = await Hub.api("/api/tray/toggle", { enabled: next });
+      paintTray(updated);
+      Hub.playSound("action");
+      Hub.toast(next ? "Значок в трее включён" : "Значок в трее скрыт");
+    } catch (error) {
+      Hub.toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 /* ---------- Меню и переключение инструментов ---------- */
 
 function navMarkup(tool) {
@@ -782,6 +830,7 @@ async function init() {
   renderNav();
   route();
   initAutostart();
+  initTray();
 
   if (window.HubPalette && typeof window.HubPalette.init === "function") window.HubPalette.init();
 
