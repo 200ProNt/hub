@@ -14,6 +14,8 @@ import time
 import uuid
 from pathlib import Path
 
+from tools import fileguard
+
 # --- Категории -------------------------------------------------------------
 
 CATEGORY_RULES: list[tuple[str, set[str]]] = [
@@ -176,14 +178,13 @@ def _cleanup_empty_category_dirs(root: Path, categories: set[str]) -> None:
 
 def scan(folder: str) -> dict:
     """План сортировки: что куда переедет. Ничего не двигает."""
-    raw = Path(folder).expanduser()
     if not str(folder).strip():
         raise ScanError("Не указана папка")
     try:
-        if not raw.is_dir():
-            raise ScanError(f"Папка не найдена: {folder}")
-        root = raw.resolve()
+        root = fileguard.check_safe_folder(folder)
         entries = sorted(root.iterdir(), key=lambda p: p.name.lower())
+    except fileguard.GuardError as exc:
+        raise ScanError(str(exc)) from exc
     except PermissionError as exc:
         raise ScanError("Нет доступа к этой папке") from exc
     except OSError as exc:

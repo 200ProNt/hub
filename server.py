@@ -25,6 +25,7 @@ from tools import (
     compare,
     diskmap,
     duplicates,
+    fileguard,
     filesorter,
     monitor,
     notes,
@@ -40,10 +41,20 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.2.0",
+        "date": "2026-11-19",
+        "items": [
+            "Защита буфера обмена: скрытие паролей из менеджеров (ExcludeClipboardContent) и пропуск чувствительных данных (ключи, токены).",
+            "Защита HTTP API: блокировка межсайтовых запросов (CSRF), проверка заголовков Host, Origin и Sec-Fetch-Site от атак DNS Rebinding.",
+            "Защита от сканирования: блокировка доступа к системным папкам Windows и корню диска во всех инструментах.",
+            "Защита заметок и буфера: синхронизация fsync от сбоев питания, автосохранение копий .bak и резервирование повреждённых файлов.",
+        ],
+    },
     {
         "version": "1.1.1",
         "date": "2026-11-17",
@@ -196,11 +207,55 @@ def open_in_explorer(path: str) -> None:
 
 
 class HubHandler(BaseHTTPRequestHandler):
-    server_version = "Hub/1.1.1"
+    server_version = "Hub/1.2.0"
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
         if args and str(args[0]).startswith(("4", "5")):
             sys.stderr.write(f"[hub] {fmt % args}\n")
+
+    def _is_allowed_host(self) -> bool:
+        host = (self.headers.get("Host") or "").strip().lower()
+        if not host:
+            return False
+        hostname = host.split(":")[0]
+        return hostname in ("127.0.0.1", "localhost", "[::1]")
+
+    def _is_allowed_origin(self) -> bool:
+        # Проверка Sec-Fetch-Site (отправляется браузерами на все запросы)
+        fetch_site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if fetch_site and fetch_site not in ("same-origin", "none", "same-site"):
+            return False
+
+        # Проверка Origin (при CORS и POST/DELETE)
+        origin = (self.headers.get("Origin") or "").strip().lower()
+        if origin:
+            parsed = urlparse(origin)
+            if parsed.hostname not in ("127.0.0.1", "localhost", "[::1]"):
+                return False
+
+        # Проверка Referer
+        referer = (self.headers.get("Referer") or "").strip().lower()
+        if referer:
+            parsed = urlparse(referer)
+            if parsed.hostname not in ("127.0.0.1", "localhost", "[::1]"):
+                return False
+
+        return True
+
+    def _security_check(self) -> bool:
+        if not self._is_allowed_host():
+            self._send_json(
+                {"error": "Запрос заблокирован: недопустимый узел Host (защита от DNS Rebinding)"},
+                403,
+            )
+            return False
+        if not self._is_allowed_origin():
+            self._send_json(
+                {"error": "Запрос заблокирован: запрещён межсайтовый доступ (CSRF/CORS)"},
+                403,
+            )
+            return False
+        return True
 
     def _send_json(self, payload: dict, status: int = 200) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -208,6 +263,9 @@ class HubHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self' 'unsafe-inline' data:; connect-src 'self'")
         self.end_headers()
         self.wfile.write(data)
 
@@ -220,6 +278,9 @@ class HubHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self' 'unsafe-inline' data:; connect-src 'self'")
         self.end_headers()
         self.wfile.write(data)
 
@@ -241,6 +302,9 @@ class HubHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "max-age=120")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self' 'unsafe-inline' data:; connect-src 'self'")
         self.end_headers()
         self.wfile.write(data)
 
@@ -263,6 +327,8 @@ class HubHandler(BaseHTTPRequestHandler):
     # -- маршруты --
 
     def do_GET(self) -> None:  # noqa: N802
+        if not self._security_check():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         try:
@@ -345,6 +411,8 @@ class HubHandler(BaseHTTPRequestHandler):
         return self._serve_static(path)
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._security_check():
+            return
         path = urlparse(self.path).path
         try:
             body = self._read_json()
@@ -352,6 +420,7 @@ class HubHandler(BaseHTTPRequestHandler):
         except ApiError as exc:
             return self._send_json({"error": str(exc)}, exc.status)
         except (
+            fileguard.GuardError,
             filesorter.ScanError,
             duplicates.ScanError,
             duplicates.RemoveError,

@@ -47,11 +47,10 @@ def scan(
         _allowed.clear()
         if not folder or not folder.strip():
             raise ScanError("Укажи папку, в которой искать большие файлы")
-        root = Path(os.path.abspath(Path(folder).expanduser()))
-        if not root.exists():
-            raise ScanError("Такой папки нет — проверь путь")
-        if not root.is_dir():
-            raise ScanError("Это файл, а нужна папка")
+        try:
+            root = fileguard.check_safe_folder(folder)
+        except fileguard.GuardError as exc:
+            raise ScanError(str(exc)) from exc
 
         limit = max(1, min(MAX_LIMIT, int(limit)))
         min_size = max(0, int(min_size))

@@ -13,6 +13,8 @@ import stat
 import time
 from pathlib import Path
 
+from tools import fileguard
+
 MAX_ENTRIES = 200_000
 MAX_LISTED = 500
 MAX_HASH_BYTES = 2 * 1024 * 1024 * 1024
@@ -82,12 +84,10 @@ def _digest(path: str) -> str | None:
 def _folder(raw: str, side: str) -> Path:
     if not raw or not raw.strip():
         raise CompareError(f"Укажи {side} папку")
-    path = Path(os.path.abspath(Path(raw).expanduser()))
-    if not path.exists():
-        raise CompareError(f"{side.capitalize()} папки нет — проверь путь")
-    if not path.is_dir():
-        raise CompareError(f"{side.capitalize()} — это файл, а нужна папка")
-    return path
+    try:
+        return fileguard.check_safe_folder(raw)
+    except fileguard.GuardError as exc:
+        raise CompareError(str(exc)) from exc
 
 
 def compare(left: str, right: str, deep: bool = False) -> dict:

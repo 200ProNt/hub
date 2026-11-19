@@ -17,6 +17,8 @@ import time
 import uuid
 from pathlib import Path
 
+from tools import fileguard
+
 CHUNK = 1024 * 1024
 DEFAULT_MIN_SIZE = 1024
 MAX_FILES = 20_000
@@ -143,12 +145,10 @@ def scan(folder: str, recursive: bool = True, min_size: int = DEFAULT_MIN_SIZE) 
     if not folder or not folder.strip():
         raise ScanError("Укажи папку для проверки")
 
-    root = Path(folder).expanduser()
-    if not root.exists():
-        raise ScanError("Такой папки нет — проверь путь")
-    if not root.is_dir():
-        raise ScanError("Это файл, а нужна папка")
-    root = root.resolve()
+    try:
+        root = fileguard.check_safe_folder(folder)
+    except fileguard.GuardError as exc:
+        raise ScanError(str(exc)) from exc
 
     min_size = max(0, int(min_size or 0))
     candidates, errors, truncated, skipped = _iter_files(root, recursive)

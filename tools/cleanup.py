@@ -66,11 +66,10 @@ def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = Tru
         _allowed.clear()
         if not folder or not folder.strip():
             raise ScanError("Укажи папку для уборки")
-        root = Path(os.path.abspath(Path(folder).expanduser()))
-        if not root.exists():
-            raise ScanError("Такой папки нет — проверь путь")
-        if not root.is_dir():
-            raise ScanError("Это файл, а нужна папка")
+        try:
+            root = fileguard.check_safe_folder(folder)
+        except fileguard.GuardError as exc:
+            raise ScanError(str(exc)) from exc
 
         try:
             age_days = int(age_days)

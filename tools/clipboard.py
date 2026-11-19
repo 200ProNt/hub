@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import shutil
 import threading
 import time
 import uuid
@@ -44,6 +47,10 @@ def _win_api():
         user32.GetClipboardData.restype = wintypes.HANDLE
         user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
         user32.SetClipboardData.restype = wintypes.HANDLE
+        user32.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
+        user32.RegisterClipboardFormatW.restype = wintypes.UINT
+        user32.IsClipboardFormatAvailable.argtypes = [wintypes.UINT]
+        user32.IsClipboardFormatAvailable.restype = wintypes.BOOL
 
         kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
         kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
@@ -51,6 +58,8 @@ def _win_api():
         kernel32.GlobalLock.restype = ctypes.c_void_p
         kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
         kernel32.GlobalUnlock.restype = wintypes.BOOL
+        kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalFree.restype = wintypes.HGLOBAL
 
         _win_api._cache = (ctypes, user32, kernel32)
     return _win_api._cache
@@ -61,12 +70,48 @@ def clipboard_sequence() -> int:
     return int(user32.GetClipboardSequenceNumber())
 
 
+def is_clipboard_ignored() -> bool:
+    """Проверяет флаги Windows: менеджеры паролей помечают чувствительные данные."""
+    try:
+        ctypes, user32, kernel32 = _win_api()
+    except ClipboardUnavailable:
+        return False
+
+    formats = getattr(_win_api, "_ignored_formats", None)
+    if formats is None:
+        exclude = user32.RegisterClipboardFormatW("ExcludeClipboardContentFromMonitorProcessing")
+        ignore = user32.RegisterClipboardFormatW("Clipboard Viewer Ignore")
+        can_include = user32.RegisterClipboardFormatW("CanIncludeInClipboardHistory")
+        formats = (exclude, ignore, can_include)
+        _win_api._ignored_formats = formats
+
+    exclude, ignore, can_include = formats
+    if exclude and user32.IsClipboardFormatAvailable(exclude):
+        return True
+    if ignore and user32.IsClipboardFormatAvailable(ignore):
+        return True
+    if can_include and user32.IsClipboardFormatAvailable(can_include):
+        handle = user32.GetClipboardData(can_include)
+        if handle:
+            pointer = kernel32.GlobalLock(handle)
+            if pointer:
+                try:
+                    val = ctypes.c_uint32.from_address(pointer).value
+                    if val == 0:
+                        return True
+                finally:
+                    kernel32.GlobalUnlock(handle)
+    return False
+
+
 def read_text() -> str | None:
-    """Текст из буфера или None, если там не текст."""
+    """Текст из буфера или None, если там не текст или буфер помечен как скрытый."""
     ctypes, user32, kernel32 = _win_api()
     if not user32.OpenClipboard(None):
         return None
     try:
+        if is_clipboard_ignored():
+            return None
         handle = user32.GetClipboardData(CF_UNICODETEXT)
         if not handle:
             return None
@@ -93,15 +138,48 @@ def write_text(text: str) -> None:
             raise ClipboardUnavailable("Не хватило памяти для записи в буфер")
         pointer = kernel32.GlobalLock(handle)
         if not pointer:
+            kernel32.GlobalFree(handle)
             raise ClipboardUnavailable("Не удалось заблокировать память буфера")
         try:
             ctypes.memmove(pointer, payload, len(payload))
         finally:
             kernel32.GlobalUnlock(handle)
         if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+            kernel32.GlobalFree(handle)
             raise ClipboardUnavailable("Не удалось записать текст в буфер")
     finally:
         user32.CloseClipboard()
+
+
+# --- Проверка конфиденциальных данных -------------------------------------
+
+SENSITIVE_PATTERNS = [
+    # Приватные ключи SSH / RSA / PGP
+    re.compile(r"-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY-----", re.IGNORECASE),
+    re.compile(r"-----BEGIN OPENSSH PRIVATE KEY-----", re.IGNORECASE),
+    re.compile(r"-----BEGIN PGP PRIVATE KEY BLOCK-----", re.IGNORECASE),
+    # GitHub / GitLab персональные токены
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr|glpat)_[A-Za-z0-9_-]{30,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{50,}\b"),
+    # Ключи API (OpenAI, HuggingFace и др.)
+    re.compile(r"\bsk-[a-zA-Z0-9_-]{20,}\b"),
+    re.compile(r"\bhf_[a-zA-Z0-9]{34,}\b"),
+    # AWS ключи доступа
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    # Токены Slack
+    re.compile(r"\bxox[baprs]-[0-9]{10,}-[0-9]{10,}-[a-zA-Z0-9]{20,}\b"),
+    # JWT Bearer токены
+    re.compile(r"\beyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b"),
+    # URL с паролями
+    re.compile(r"https?://[^\s:@]+:[^\s:@]+@[^\s/]+", re.IGNORECASE),
+]
+
+
+def is_sensitive(text: str) -> bool:
+    """Проверяет, содержит ли текст приватные ключи, токены или пароли."""
+    if not text:
+        return False
+    return any(pattern.search(text) for pattern in SENSITIVE_PATTERNS)
 
 
 # --- Хранилище -------------------------------------------------------------
@@ -118,11 +196,36 @@ class ClipboardStore:
     # - файл -
 
     def _load(self) -> None:
-        try:
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        raw = None
+        backup_file = self.path.with_name(f"{self.path.name}.bak")
+
+        if self.path.exists():
+            try:
+                raw = json.loads(self.path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                try:
+                    if self.path.stat().st_size > 0:
+                        ts = int(time.time())
+                        corrupted_copy = self.path.with_name(f"{self.path.stem}.corrupted.{ts}.json")
+                        shutil.copy2(self.path, corrupted_copy)
+                except OSError:
+                    pass
+
+                if backup_file.exists():
+                    try:
+                        raw = json.loads(backup_file.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        raw = None
+        elif backup_file.exists():
+            try:
+                raw = json.loads(backup_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                raw = None
+
+        if raw is None:
             self._items = []
             return
+
         items = raw.get("items") if isinstance(raw, dict) else raw
         if not isinstance(items, list):
             self._items = []
@@ -144,9 +247,20 @@ class ClipboardStore:
     def _save(self) -> None:
         payload = json.dumps({"items": self._items}, ensure_ascii=False)
         temporary = self.path.with_suffix(".tmp")
+        backup_file = self.path.with_name(f"{self.path.name}.bak")
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            temporary.write_text(payload, encoding="utf-8")
+            with temporary.open("w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            if self.path.exists():
+                try:
+                    shutil.copy2(self.path, backup_file)
+                except OSError:
+                    pass
+
             temporary.replace(self.path)
         except OSError:
             pass
@@ -190,9 +304,11 @@ class ClipboardStore:
 
     # - изменения -
 
-    def add(self, text: str) -> dict | None:
+    def add(self, text: str, skip_sensitive: bool = True) -> dict | None:
         text = (text or "").replace("\x00", "")
         if not text.strip() or len(text) > MAX_TEXT_LENGTH:
+            return None
+        if skip_sensitive and is_sensitive(text):
             return None
         with self._lock:
             for index, item in enumerate(self._items):
@@ -283,7 +399,7 @@ class ClipboardWatcher(threading.Thread):
                     if sequence != last_sequence:
                         last_sequence = sequence
                         text = read_text()
-                        if text:
+                        if text and not is_sensitive(text):
                             self.store.add(text)
                 self.last_error = None
             except ClipboardUnavailable as exc:

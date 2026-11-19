@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -39,11 +40,39 @@ class NotesStore:
     # - файл -
 
     def _load(self) -> None:
-        try:
-            raw = json.loads(self.file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        raw = None
+        backup_file = self.file.with_name(f"{self.file.name}.bak")
+
+        if self.file.exists():
+            try:
+                raw = json.loads(self.file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                # Файл повреждён (например, при резком выключении питания)
+                try:
+                    if self.file.stat().st_size > 0:
+                        ts = int(time.time())
+                        corrupted_copy = self.file.with_name(f"{self.file.stem}.corrupted.{ts}.json")
+                        shutil.copy2(self.file, corrupted_copy)
+                except OSError:
+                    pass
+
+                # Пробуем восстановиться из автоматической резервной копии .bak
+                if backup_file.exists():
+                    try:
+                        raw = json.loads(backup_file.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        raw = None
+
+        elif backup_file.exists():
+            try:
+                raw = json.loads(backup_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                raw = None
+
+        if raw is None:
             self._notes = []
             return
+
         items = raw.get("notes") if isinstance(raw, dict) else raw
         if not isinstance(items, list):
             self._notes = []
@@ -72,9 +101,22 @@ class NotesStore:
     def _save(self) -> None:
         payload = json.dumps({"notes": self._notes}, ensure_ascii=False)
         temporary = self.file.with_suffix(".tmp")
+        backup_file = self.file.with_name(f"{self.file.name}.bak")
         try:
             self.file.parent.mkdir(parents=True, exist_ok=True)
-            temporary.write_text(payload, encoding="utf-8")
+            # Запись с принудительным fsync для защиты от сбоев питания
+            with temporary.open("w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            # Создаём актуальный .bak перед заменой
+            if self.file.exists():
+                try:
+                    shutil.copy2(self.file, backup_file)
+                except OSError:
+                    pass
+
             temporary.replace(self.file)
         except OSError as exc:
             raise NoteError(f"Не получилось сохранить заметки: {exc}") from exc

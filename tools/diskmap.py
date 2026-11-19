@@ -58,7 +58,10 @@ def files(folder: str) -> dict:
         _allowed.clear()
         if not folder or not folder.strip():
             raise ScanError("Укажи папку")
-        root = Path(os.path.abspath(Path(folder).expanduser()))
+        try:
+            root = fileguard.check_safe_folder(folder)
+        except fileguard.GuardError as exc:
+            raise ScanError(str(exc)) from exc
         try:
             parents = _parents(root)
             counters = {"errors": []}
@@ -215,12 +218,10 @@ def scan(folder: str) -> dict:
     if not folder or not folder.strip():
         raise ScanError("Укажи папку, которую нужно посчитать")
 
-    root = Path(folder).expanduser()
-    if not root.exists():
-        raise ScanError("Такой папки нет — проверь путь")
-    if not root.is_dir():
-        raise ScanError("Это файл, а нужна папка")
-    root = root.resolve()
+    try:
+        root = fileguard.check_safe_folder(folder)
+    except fileguard.GuardError as exc:
+        raise ScanError(str(exc)) from exc
 
     key = str(root).lower()
     cached = _cached(key)
