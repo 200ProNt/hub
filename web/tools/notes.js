@@ -185,11 +185,6 @@
           $("#notesEmpty").querySelector("p").textContent = "Заметки лежат в одном файле на этом компьютере и никуда не отправляются. Заголовок не обязателен.";
         }
       }
-        } else if (isEmpty) {
-          $("#notesEmpty").querySelector("h2").textContent = "Короткие записи, которые не потеряются";
-          $("#notesEmpty").querySelector("p").textContent = "Заметки лежат в одном файле на этом компьютере и никуда не отправляются. Заголовок не обязателен.";
-        }
-      }
 
       function openEditor(note) {
         state.editing = note ? note.id : null;
