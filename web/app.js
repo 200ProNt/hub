@@ -3,6 +3,7 @@
 window.HubTools = window.HubTools || {};
 
 const TOOL_ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5h-5A1.5 1.5 0 0 1 13 20v-5h-2v5A1.5 1.5 0 0 1 9.5 21.5h-5A1.5 1.5 0 0 1 3 20z"/>',
   clipboard: '<rect x="6" y="4.5" width="12" height="16" rx="2.5"/><path d="M9.5 4.5V3.6A1.1 1.1 0 0 1 10.6 2.5h2.8a1.1 1.1 0 0 1 1.1 1.1v.9"/><path d="M9 10h6M9 13.5h6M9 17h3.5"/>',
   folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.2c.6 0 1.2.2 1.6.7l1 1.05c.2.2.5.35.8.35H18.5A2.5 2.5 0 0 1 21 9.6v7.9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/>',
   copies: '<rect x="3.5" y="4.5" width="10" height="13" rx="2.5"/><rect x="10.5" y="7.5" width="10" height="13" rx="2.5"/>',
@@ -108,6 +109,11 @@ Hub.toast = function (message) {
   node.style.animation = "";
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => node.classList.add("hidden"), 3400);
+
+  const lower = String(message || "").toLowerCase();
+  if (lower.includes("скопирован")) Hub.playSound("copy");
+  else if (lower.includes("удален") || lower.includes("очищен")) Hub.playSound("trash");
+  else if (lower.includes("сохранен") || lower.includes("выполнен") || lower.includes("создан")) Hub.playSound("check");
 };
 
 Hub.setBusy = function (active, text = "Работаю…") {
@@ -258,6 +264,178 @@ function initMotion() {
   applyMotion(saved !== "off");
 }
 
+/* ---------- Микро-звуки Web Audio API ---------- */
+let audioCtx = null;
+let soundEnabled = true;
+
+Hub.playSound = function (type) {
+  if (!soundEnabled) return;
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!audioCtx) audioCtx = new AudioContextClass();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === "copy") {
+      // Приятный мягкий щелчок/колокольчик копирования
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, t); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, t + 0.08); // A5
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.start(t);
+      osc.stop(t + 0.12);
+    } else if (type === "check") {
+      // Аккорд завершения задачи (восходящий тон)
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, t); // C5
+      osc.frequency.exponentialRampToValueAtTime(659.25, t + 0.09); // E5
+      gain.gain.setValueAtTime(0.09, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      osc.start(t);
+      osc.stop(t + 0.16);
+    } else if (type === "trash") {
+      // Мягкий глухой стук удаления
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(180, t);
+      osc.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.start(t);
+      osc.stop(t + 0.14);
+    } else if (type === "pop") {
+      // Лёгкий тактильный щелчок переключения вкладок
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(320, t);
+      osc.frequency.exponentialRampToValueAtTime(440, t + 0.04);
+      gain.gain.setValueAtTime(0.04, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      osc.start(t);
+      osc.stop(t + 0.05);
+    }
+  } catch {
+    /* Web Audio API может быть недоступен в некоторых средах */
+  }
+};
+
+/* ---------- Акцентные цвета ---------- */
+function applyAccent(name) {
+  if (document.documentElement && document.documentElement.dataset) {
+    if (name) {
+      document.documentElement.dataset.accent = name;
+    } else {
+      delete document.documentElement.dataset.accent;
+    }
+  }
+  try {
+    if (name) localStorage.setItem("hub-accent", name);
+    else localStorage.removeItem("hub-accent");
+  } catch {
+    /* localStorage может быть недоступен */
+  }
+  const dots = typeof document.querySelectorAll === "function" ? document.querySelectorAll("#accentBar .accent-dot") : [];
+  if (dots && dots.forEach) {
+    dots.forEach((dot) => {
+      if (dot.classList && dot.classList.toggle) {
+        dot.classList.toggle("is-active", (dot.dataset && dot.dataset.accent || "") === (name || ""));
+      }
+    });
+  }
+}
+
+function initAccent() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem("hub-accent");
+  } catch {
+    saved = null;
+  }
+  applyAccent(saved || "");
+
+  const bar = document.getElementById("accentBar");
+  if (bar && bar.addEventListener) {
+    bar.addEventListener("click", (e) => {
+      const dot = e.target && e.target.closest ? e.target.closest(".accent-dot") : null;
+      if (!dot) return;
+      applyAccent(dot.dataset && dot.dataset.accent || "");
+      Hub.playSound("pop");
+    });
+  }
+}
+
+/* ---------- Эффект стекла (Acrylic Blur) ---------- */
+function applyGlass(enabled) {
+  if (document.documentElement && document.documentElement.dataset) {
+    document.documentElement.dataset.glass = enabled ? "on" : "off";
+  }
+  const label = document.getElementById("glassLabel");
+  if (label) label.textContent = enabled ? "Стекло включено" : "Стекло выключено";
+  const btn = document.getElementById("glassBtn");
+  if (btn && btn.setAttribute) btn.setAttribute("aria-pressed", String(enabled));
+  try {
+    localStorage.setItem("hub-glass", enabled ? "on" : "off");
+  } catch {
+    /* localStorage может быть недоступен */
+  }
+}
+
+function initGlass() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem("hub-glass");
+  } catch {
+    saved = null;
+  }
+  applyGlass(saved === "on");
+
+  const btn = document.getElementById("glassBtn");
+  if (btn && btn.addEventListener) {
+    btn.addEventListener("click", () => {
+      const next = document.documentElement && document.documentElement.dataset && document.documentElement.dataset.glass !== "on";
+      applyGlass(next);
+      Hub.playSound("pop");
+    });
+  }
+}
+
+/* ---------- Переключатель звука ---------- */
+function applySound(enabled) {
+  soundEnabled = enabled;
+  const label = document.getElementById("soundLabel");
+  if (label) label.textContent = enabled ? "Звуки включены" : "Звуки выключены";
+  const btn = document.getElementById("soundBtn");
+  if (btn && btn.setAttribute) btn.setAttribute("aria-pressed", String(enabled));
+  try {
+    localStorage.setItem("hub-sound", enabled ? "on" : "off");
+  } catch {
+    /* localStorage может быть недоступен */
+  }
+}
+
+function initSound() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem("hub-sound");
+  } catch {
+    saved = null;
+  }
+  applySound(saved !== "off");
+
+  const btn = document.getElementById("soundBtn");
+  if (btn && btn.addEventListener) {
+    btn.addEventListener("click", () => {
+      applySound(!soundEnabled);
+      if (soundEnabled) Hub.playSound("pop");
+    });
+  }
+}
+
 /* ---------- Переход к результату общего поиска ---------- */
 
 Hub.pendingSearch = null;
@@ -406,6 +584,9 @@ function route() {
   root.inert = false;
   root.removeAttribute("aria-busy");
   if (Hub.activeId === tool.id) return;
+  if (Hub.activeId && Hub.activeId !== tool.id) {
+    Hub.playSound("pop");
+  }
   const enter = () => {
     if (version !== routeVersion) return;
     root.classList.remove("is-exiting");
@@ -431,6 +612,9 @@ function route() {
 
 async function init() {
   initTheme();
+  initAccent();
+  initGlass();
+  initSound();
   initMotion();
 
   document.getElementById("themeBtn").addEventListener("click", () => {
@@ -444,6 +628,7 @@ async function init() {
   window.addEventListener("hashchange", route);
 
   const fallbackTools = [
+    { id: "home", name: "Главная", hint: "Сводка дня, виджеты и быстрые действия", icon: "home" },
     { id: "clipboard", name: "Буфер обмена", hint: "Всё, что копировал, — под рукой", icon: "clipboard" },
     { id: "notes", name: "Заметки", hint: "Быстрые записи на этом компьютере", icon: "note" },
     { id: "sorter", name: "Сортировка файлов", hint: "Разложить папку по категориям", icon: "folder" },

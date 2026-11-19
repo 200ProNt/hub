@@ -12,6 +12,8 @@
   try {
     if (localStorage.getItem("hub-theme") === "dark") document.documentElement.dataset.theme = "dark";
     if (localStorage.getItem("hub-motion") === "off") document.documentElement.dataset.motion = "off";
+    if (localStorage.getItem("hub-accent")) document.documentElement.dataset.accent = localStorage.getItem("hub-accent");
+    if (localStorage.getItem("hub-glass") === "on") document.documentElement.dataset.glass = "on";
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -49,6 +51,32 @@
     <nav class="nav" id="toolNav" aria-label="Инструменты"></nav>
 
     <div class="sidebar-foot">
+      <div class="accent-bar" id="accentBar" aria-label="Выбор акцентного цвета" title="Выбор акцентного цвета">
+        <button class="accent-dot is-active" type="button" data-accent="" title="Фиолетовый (Cyber)" style="--dot-color: #5b5bd6;"></button>
+        <button class="accent-dot" type="button" data-accent="emerald" title="Изумрудный (Matrix)" style="--dot-color: #10b981;"></button>
+        <button class="accent-dot" type="button" data-accent="ocean" title="Океанский синий (Windows)" style="--dot-color: #0284c7;"></button>
+        <button class="accent-dot" type="button" data-accent="sunset" title="Закатный оранжевый" style="--dot-color: #ea580c;"></button>
+        <button class="accent-dot" type="button" data-accent="pink" title="Неоновый розовый" style="--dot-color: #db2777;"></button>
+      </div>
+      <button class="theme-toggle" id="soundBtn" type="button" aria-pressed="true" title="Звуки кликов и действий в интерфейсе">
+        <span class="theme-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+        </span>
+        <span id="soundLabel">Звуки включены</span>
+      </button>
+      <button class="theme-toggle" id="glassBtn" type="button" aria-pressed="false" title="Эффект матового стекла Fluent Design">
+        <span class="theme-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 3a9 9 0 0 1 0 18z"/>
+          </svg>
+        </span>
+        <span id="glassLabel">Стекло выключено</span>
+      </button>
       <button class="theme-toggle" id="motionBtn" type="button" aria-pressed="true">
         <span class="theme-icon motion-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -104,6 +132,7 @@
 <script src="intro.js"></script>
 <script src="palette.js"></script>
 <script src="app.js"></script>
+<script src="tools/home.js"></script>
 <script src="tools/clipboard.js"></script>
 <script src="tools/notes.js"></script>
 <script src="tools/sorter.js"></script>

@@ -43,10 +43,19 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.2.6"
+VERSION = "1.3.0"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.3.0",
+        "date": "2026-11-19",
+        "items": [
+            "Кастомизация UI в стиле Windows 11 Fluent Design: выбор акцентных цветов (Cyber Purple, Hacker Emerald, Ocean Blue, Sunset Orange, Neon Pink) и эффект матового стекла (Glassmorphism / Acrylic blur).",
+            "Главный экран — Дашборд: новый стартовый раздел со сводкой дня, живыми виджетами CPU/RAM, интерактивными задачами To-Do, последними записями буфера и быстрыми действиями.",
+            "Микро-звуки интерфейса: мягкие тактильные звуковые щелчки и переливы на Web Audio API (копирование, выполнение задач, удаление, переключение) с возможностью отключения.",
+        ],
+    },
     {
         "version": "1.2.6",
         "date": "2026-11-19",
@@ -177,6 +186,65 @@ def about_info() -> dict:
         "tools": len(TOOLS),
         "python": platform.python_version(),
         "changes": CHANGELOG,
+    }
+
+
+def home_summary() -> dict:
+    """Сводка данных для главной страницы (дашборда)."""
+    uncompleted_todos = []
+    notes_count = 0
+    try:
+        notes_store = notes.store()
+        notes_count = notes_store.count()
+        for note in notes_store.listing(""):
+            lines = note.get("text", "").splitlines()
+            for idx, line in enumerate(lines):
+                trimmed = line.strip()
+                if trimmed.startswith("- [ ]"):
+                    todo_text = trimmed[5:].strip()
+                    uncompleted_todos.append({
+                        "note_id": note["id"],
+                        "note_title": note["title"] or "Без названия",
+                        "line_idx": idx,
+                        "text": todo_text,
+                    })
+                    if len(uncompleted_todos) >= 8:
+                        break
+            if len(uncompleted_todos) >= 8:
+                break
+    except Exception:
+        pass
+
+    try:
+        vitals = monitor.snapshot().get("vitals", {})
+    except Exception:
+        vitals = {}
+
+    recent_clips = []
+    clipboard_count = 0
+    try:
+        clip_store = store()
+        recent_clips = clip_store.listing("", limit=3)
+        clipboard_count = clip_store.count()
+    except Exception:
+        pass
+
+    try:
+        trash_items = trash.runs()
+    except Exception:
+        trash_items = []
+
+    return {
+        "vitals": vitals,
+        "todos": uncompleted_todos,
+        "recent_clips": recent_clips,
+        "stats": {
+            "notes_count": notes_count,
+            "clipboard_count": clipboard_count,
+            "trash_count": sum(r.get("count", 0) for r in trash_items),
+            "trash_size": sum(r.get("size", 0) for r in trash_items),
+        },
+        "version": VERSION,
     }
 
 
@@ -402,6 +470,8 @@ class HubHandler(BaseHTTPRequestHandler):
                 )
             if path == "/api/about":
                 return self._send_json(about_info())
+            if path == "/api/home/summary":
+                return self._send_json(home_summary())
             if path == "/api/clipboard/items":
                 query = parse_qs(parsed.query)
                 text = (query.get("q") or [""])[0]
