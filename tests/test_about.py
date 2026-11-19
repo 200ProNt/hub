@@ -32,7 +32,7 @@ class AboutTestCase(unittest.TestCase):
         self.assertEqual(Path(info["readme"]).name, "README.md")
 
     def test_version_is_exposed_to_the_menu(self):
-        self.assertRegex(server.VERSION, r"^\d+\.\d+\.\d+$")
+        self.assertRegex(server.VERSION, r"^\d+\.\d+\.\d+(\.\d+)?$")
 
     def test_changelog_starts_with_the_current_version(self):
         info = server.about_info()
@@ -43,7 +43,7 @@ class AboutTestCase(unittest.TestCase):
 
     def test_changelog_entries_are_well_formed(self):
         for release in server.about_info()["changes"]:
-            self.assertRegex(release["version"], r"^\d+\.\d+\.\d+$")
+            self.assertRegex(release["version"], r"^\d+\.\d+\.\d+(\.\d+)?$")
             self.assertRegex(release["date"], r"^\d{4}-\d{2}-\d{2}$")
             self.assertIsInstance(release["items"], list)
             self.assertTrue(release["items"])
@@ -54,6 +54,14 @@ class AboutTestCase(unittest.TestCase):
     def test_changelog_versions_go_newest_first(self):
         versions = [release["version"] for release in server.about_info()["changes"]]
         self.assertEqual(versions, sorted(versions, reverse=True))
+
+    def test_start_bat_has_crlf_and_valid_syntax(self):
+        start_bat = Path(__file__).resolve().parent.parent / "start.bat"
+        self.assertTrue(start_bat.is_file())
+        raw_bytes = start_bat.read_bytes()
+        self.assertIn(b"\r\n", raw_bytes)
+        lines_with_bare_lf = [line for line in raw_bytes.split(b"\n")[:-1] if not line.endswith(b"\r")]
+        self.assertEqual(lines_with_bare_lf, [], "start.bat must strictly use CRLF line endings for cmd.exe compatibility")
 
 
 if __name__ == "__main__":

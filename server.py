@@ -41,10 +41,18 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.2.0"
+VERSION = "1.2.0.1"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.2.0.1",
+        "date": "2026-11-19",
+        "items": [
+            "Хотфикс запуска: исправлен скрипт start.bat (устранена ошибка парсинга команд 'EXE' / 'ATA\\Programs' из-за несовместимости переводов строк и многострочных блоков в cmd.exe).",
+            "Улучшен поиск Python: поддержка путей с пробелами (Program Files), py launcher и принудительный CRLF через .gitattributes.",
+        ],
+    },
     {
         "version": "1.2.0",
         "date": "2026-11-19",
@@ -207,7 +215,7 @@ def open_in_explorer(path: str) -> None:
 
 
 class HubHandler(BaseHTTPRequestHandler):
-    server_version = "Hub/1.2.0"
+    server_version = f"Hub/{VERSION}"
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
         if args and str(args[0]).startswith(("4", "5")):
