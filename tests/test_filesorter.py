@@ -158,6 +158,27 @@ class SorterTestCase(unittest.TestCase):
         self.assertFalse(payload["undone"])
         self.assertEqual(payload["moved"][0]["name"], "data.csv")
 
+    def test_custom_rules_save_and_reset(self) -> None:
+        custom_file = self.root / "sorter_rules.json"
+        os.environ["HUB_SORTER_RULES_FILE"] = str(custom_file)
+        try:
+            initial_rules = sorter.get_rules()
+            new_rules = [
+                {"name": "3D Модели", "extensions": [".obj", ".fbx", ".blend"]},
+                {"name": "Тексты", "extensions": [".txt", ".md"]},
+            ]
+            saved = sorter.save_rules(new_rules)
+            self.assertEqual(len(saved), 2)
+            self.assertEqual(sorter.category_for("mesh.obj"), "3D Модели")
+            self.assertEqual(sorter.category_for("note.md"), "Тексты")
+
+            reset = sorter.reset_rules()
+            self.assertEqual(len(reset), len(sorter.DEFAULT_CATEGORY_RULES))
+            self.assertEqual(sorter.category_for("mesh.obj"), "Другое")
+        finally:
+            os.environ.pop("HUB_SORTER_RULES_FILE", None)
+            sorter.reset_rules()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

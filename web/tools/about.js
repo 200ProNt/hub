@@ -53,6 +53,8 @@
           <li>Сервер слушает только <code>127.0.0.1</code> — из локальной сети доступа нет.</li>
         </ul>
         <div class="about-actions">
+          <button class="btn ghost small" id="aboutDesktopShortcut" type="button">Ярлык на Рабочий стол</button>
+          <button class="btn ghost small" id="aboutStartShortcut" type="button">Ярлык в меню «Пуск»</button>
           <button class="btn ghost small" id="aboutIntro" type="button">Показать обучение снова</button>
         </div>
       </section>
@@ -175,9 +177,72 @@
         if (window.HubIntro && typeof window.HubIntro.open === "function") window.HubIntro.open();
       }
 
+      async function syncShortcuts() {
+        try {
+          const res = await Hub.api("/api/shortcuts/status");
+          if (!res.supported) {
+            const dt = $("#aboutDesktopShortcut");
+            const sm = $("#aboutStartShortcut");
+            if (dt) dt.classList.add("hidden");
+            if (sm) sm.classList.add("hidden");
+            return;
+          }
+          const dtBtn = $("#aboutDesktopShortcut");
+          const smBtn = $("#aboutStartShortcut");
+          if (dtBtn) {
+            dtBtn.textContent = res.desktop ? "Удалить ярлык с Рабочего стола" : "Ярлык на Рабочий стол";
+            dtBtn.classList.toggle("danger", res.desktop);
+          }
+          if (smBtn) {
+            smBtn.textContent = res.start_menu ? "Удалить ярлык из меню «Пуск»" : "Ярлык в меню «Пуск»";
+            smBtn.classList.toggle("danger", res.start_menu);
+          }
+        } catch {}
+      }
+
+      const dtBtn = $("#aboutDesktopShortcut");
+      if (dtBtn) {
+        dtBtn.addEventListener("click", async () => {
+          try {
+            const st = await Hub.api("/api/shortcuts/status");
+            if (st.desktop) {
+              await Hub.api("/api/shortcuts/remove", { target: "desktop" });
+              Hub.toast("Ярлык удалён с Рабочего стола");
+            } else {
+              await Hub.api("/api/shortcuts/create", { target: "desktop" });
+              Hub.toast("Ярлык создан на Рабочем столе");
+            }
+            syncShortcuts();
+          } catch (e) {
+            Hub.toast(e.message);
+          }
+        });
+      }
+
+      const smBtn = $("#aboutStartShortcut");
+      if (smBtn) {
+        smBtn.addEventListener("click", async () => {
+          try {
+            const st = await Hub.api("/api/shortcuts/status");
+            if (st.start_menu) {
+              await Hub.api("/api/shortcuts/remove", { target: "start_menu" });
+              Hub.toast("Ярлык удалён из меню «Пуск»");
+            } else {
+              await Hub.api("/api/shortcuts/create", { target: "start_menu" });
+              Hub.toast("Ярлык добавлен в меню «Пуск»");
+            }
+            syncShortcuts();
+          } catch (e) {
+            Hub.toast(e.message);
+          }
+        });
+      }
+
       $("#aboutOpen").addEventListener("click", openFolder);
       $("#aboutReadme").addEventListener("click", openReadme);
       $("#aboutIntro").addEventListener("click", replayIntro);
+
+      syncShortcuts();
 
       render(null);
       Hub.api("/api/about")

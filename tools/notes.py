@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import threading
 import time
@@ -217,6 +218,47 @@ class NotesStore:
                     self._save()
                     return True
         return False
+
+    def export_note(self, note_id: str, fmt: str = "md") -> tuple[str, str]:
+        note = self.get(note_id)
+        if not note:
+            raise NoteError("Заметка не найдена")
+
+        title = note["title"] or "Заметка"
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() or "note"
+        date_str = time.strftime("%Y-%m-%d", time.localtime(note["created"]))
+
+        if fmt.lower() == "txt":
+            filename = f"{safe_title}_{date_str}.txt"
+            content = f"{title}\n{'=' * len(title)}\nДата: {date_str}\n\n{note['text']}\n"
+        else:
+            filename = f"{safe_title}_{date_str}.md"
+            content = f"# {title}\n\n*Создано: {date_str}*\n\n{note['text']}\n"
+        return filename, content
+
+    def export_all(self, fmt: str = "md") -> tuple[str, str]:
+        with self._lock:
+            notes = list(self._notes)
+        notes.sort(key=lambda n: (0 if n.get("pinned") else 1, -n.get("created", 0)))
+
+        date_str = time.strftime("%Y-%m-%d")
+        if fmt.lower() == "txt":
+            filename = f"hub_notes_{date_str}.txt"
+            parts = [f"ЗАМЕТКИ HUB (всего: {len(notes)})\n{'=' * 40}\nЭкспорт: {date_str}\n"]
+            for n in notes:
+                title = n.get("title") or "Без названия"
+                n_date = time.strftime("%Y-%m-%d %H:%M", time.localtime(n.get("created", 0)))
+                parts.append(f"\n{'-' * 40}\n{title} ({n_date})\n{'-' * 40}\n{n.get('text', '')}\n")
+            content = "\n".join(parts)
+        else:
+            filename = f"hub_notes_{date_str}.md"
+            parts = [f"# Заметки Hub\n\n*Экспортировано: {date_str} · Всего заметок: {len(notes)}*\n"]
+            for n in notes:
+                title = n.get("title") or "Без названия"
+                n_date = time.strftime("%Y-%m-%d %H:%M", time.localtime(n.get("created", 0)))
+                parts.append(f"\n---\n\n## {title}\n\n*Дата: {n_date}*\n\n{n.get('text', '')}\n")
+            content = "\n".join(parts)
+        return filename, content
 
 
 _store: NotesStore | None = None

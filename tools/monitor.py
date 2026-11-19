@@ -315,18 +315,28 @@ def _refresh() -> None:
             entry["pid"]: (entry["name"], entry["created"]) for entry in entries if entry["can_stop"]
         }
         ready = span > 0.05
+        cpu_val = _percent(total_delta, span, cores) if ready else 0.0
+        mem_info = _memory(libs)
+        history = _state.get("history", [])
+        if ready:
+            history.append({"cpu": cpu_val, "memory": mem_info.get("percent", 0.0), "time": time.time()})
+            if len(history) > 30:
+                history = history[-30:]
+            _state["history"] = history
+
         _state["latest"] = {
             "ready": ready,
             "time": time.time(),
             "seconds": round(span, 2),
             "system": {
-                "cpu": _percent(total_delta, span, cores) if ready else 0.0,
+                "cpu": cpu_val,
                 "cores": cores,
-                "memory": _memory(libs),
+                "memory": mem_info,
                 "disk": _disk(),
                 "uptime": round(libs["kernel32"].GetTickCount64() / 1000, 0),
                 "processes": len(entries),
             },
+            "history": list(history),
             "processes": entries,
         }
 
@@ -337,6 +347,7 @@ _state: dict = {
     "previous_time": 0.0,
     "allowed": {},
     "latest": None,
+    "history": [],
     "thread": None,
 }
 

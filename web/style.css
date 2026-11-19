@@ -330,6 +330,11 @@ body {
 /* ---------- Буфер обмена ---------- */
 
 .clip-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.clip-filters { display: inline-flex; gap: 4px; background: var(--chip, rgba(0,0,0,0.04)); padding: 3px; border-radius: 999px; border: 1px solid var(--border); }
+.clip-filters .pill { cursor: pointer; border: none; background: transparent; color: var(--muted); font-size: 12px; padding: 3px 10px; border-radius: 999px; transition: all 0.15s ease; }
+.clip-filters .pill:hover { color: var(--text); }
+.clip-filters .pill.is-active { background: var(--card); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-sm); }
+.clip-pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; }
 
 .clip-status { margin: 0 2px 14px; font-size: 12.5px; color: var(--muted); }
 .clip-status.is-paused { color: var(--warn); }
@@ -490,6 +495,19 @@ body {
 .soon { text-align: center; padding: 60px 20px; }
 .soon-title { margin: 0; font-weight: 600; }
 .soon-text { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+.rules-card { margin-top: 12px; padding: 16px 20px; animation: rise 0.2s ease both; }
+.rules-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.rules-head h3 { font-size: 14.5px; font-weight: 650; margin: 0; }
+.rules-actions { display: flex; gap: 8px; }
+.rules-list { display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px; }
+.rules-row { display: flex; gap: 10px; align-items: center; }
+.rules-cat-input { width: 140px; flex-shrink: 0; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-soft); color: var(--text); }
+.rules-ext-input { flex: 1; min-width: 0; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-soft); color: var(--text); }
+.rules-foot { margin-top: 12px; display: flex; gap: 8px; }
+.rules-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.rules-field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.rules-field input { width: 100%; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-soft); color: var(--text); }
 
 /* ---------- Сортировка файлов ---------- */
 
@@ -1164,6 +1182,7 @@ body {
 /* ---------- Заметки ---------- */
 
 .notes-bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px; }
+.notes-actions { display: flex; gap: 8px; align-items: center; }
 
 .notes-search {
   display: flex;
@@ -1561,6 +1580,30 @@ body {
 
 .mon-bar i.is-blue { background: linear-gradient(90deg, var(--pie-2), #2f7ae5); }
 .mon-bar i.is-green { background: linear-gradient(90deg, var(--pie-3), #12a06a); }
+
+.mon-sparkline {
+  display: block;
+  width: 100%;
+  height: 26px;
+  margin-top: 6px;
+  overflow: visible;
+}
+.sparkline-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sparkline-line.is-ram {
+  stroke: #2f7ae5;
+}
+.sparkline-area {
+  fill: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.sparkline-area.is-ram {
+  fill: color-mix(in srgb, #2f7ae5 15%, transparent);
+}
 
 .mon-card { margin-top: 14px; padding: 18px 20px 14px; }
 

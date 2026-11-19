@@ -10,6 +10,13 @@
   function cardMarkup(item) {
     const escape = Hub.escapeHtml;
     const chars = `${item.chars} ${Hub.plural(item.chars, "символ", "символа", "символов")}`;
+    const words = item.words != null ? `${item.words} ${Hub.plural(item.words, "слово", "слова", "слов")} · ` : "";
+    let typeBadge = "";
+    if (item.type === "url") {
+      typeBadge = '<span class="pill pill-quiet clip-pill">ссылка</span>';
+    } else if (item.type === "code") {
+      typeBadge = '<span class="pill pill-quiet clip-pill">код</span>';
+    }
     return `
       <article class="clip ${item.pinned ? "is-pinned" : ""}" data-id="${escape(item.id)}">
         <button class="clip-body" type="button" data-act="copy" title="Скопировать снова">
@@ -17,7 +24,8 @@
           <span class="clip-meta">
             <span class="clip-time">${Hub.timeAgo(item.time)}</span>
             <span class="clip-dot">·</span>
-            <span>${chars}</span>
+            <span>${words}${chars}</span>
+            ${typeBadge}
             ${item.pinned ? '<span class="clip-badge">закреплено</span>' : ""}
           </span>
         </button>
@@ -38,6 +46,12 @@
               <circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/>
             </svg>
             <input id="clipSearch" type="search" placeholder="Поиск по скопированному…" autocomplete="off" aria-label="Поиск по истории буфера">
+          </div>
+          <div class="clip-filters" id="clipFilters" role="tablist" aria-label="Фильтр по типу">
+            <button class="pill is-active" type="button" data-type="">Все</button>
+            <button class="pill" type="button" data-type="url">Ссылки</button>
+            <button class="pill" type="button" data-type="code">Код</button>
+            <button class="pill" type="button" data-type="text">Текст</button>
           </div>
           <button class="btn ghost small" id="clipPause" type="button" title="Перестать записывать новый текст">${PAUSE_ICON}<span>Пауза</span></button>
           <button class="btn ghost small" id="clipClear" type="button">Очистить</button>
@@ -66,8 +80,10 @@
       const status = root.querySelector("#clipStatus");
       const pauseButton = root.querySelector("#clipPause");
       const searchInput = root.querySelector("#clipSearch");
+      const filterButtons = root.querySelectorAll("#clipFilters .pill");
 
       let query = "";
+      let typeFilter = "";
       let paused = false;
       let items = [];
       let signature = "";
@@ -80,10 +96,10 @@
           list.innerHTML = "";
           list.classList.add("hidden");
           empty.classList.remove("hidden");
-          const hasQuery = query.trim() !== "";
-          root.querySelector("#clipEmptyTitle").textContent = hasQuery ? "Ничего не нашлось" : "Пока пусто";
-          root.querySelector("#clipEmptyText").textContent = hasQuery
-            ? "Попробуй другой запрос — поиск идёт по тексту записей."
+          const hasFilter = query.trim() !== "" || typeFilter !== "";
+          root.querySelector("#clipEmptyTitle").textContent = hasFilter ? "Ничего не нашлось" : "Пока пусто";
+          root.querySelector("#clipEmptyText").textContent = hasFilter
+            ? "Попробуй изменить фильтр или запрос — поиск идёт по тексту записей."
             : "Скопируй любой текст — и он появится здесь. Всё хранится на этом компьютере.";
           return;
         }
@@ -103,7 +119,8 @@
       async function refresh(force = false) {
         if (stopped) return;
         try {
-          const data = await Hub.api(`/api/clipboard/items?limit=200&q=${encodeURIComponent(query)}`);
+          const typeParam = typeFilter ? `&type=${encodeURIComponent(typeFilter)}` : "";
+          const data = await Hub.api(`/api/clipboard/items?limit=200&q=${encodeURIComponent(query)}${typeParam}`);
           paused = Boolean(data.paused);
           const nextSignature = JSON.stringify(data.items);
           if (force || nextSignature !== signature) {
@@ -177,6 +194,15 @@
         const card = button.closest(".clip");
         if (!card) return;
         act(button.dataset.act, card.dataset.id);
+      });
+
+      filterButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filterButtons.forEach((b) => b.classList.remove("is-active"));
+          btn.classList.add("is-active");
+          typeFilter = btn.dataset.type || "";
+          refresh(true);
+        });
       });
 
       searchInput.addEventListener("input", () => {

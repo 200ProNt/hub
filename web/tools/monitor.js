@@ -14,12 +14,14 @@
         <span class="mon-vital-value" id="monCpu">—</span>
         <span class="mon-vital-sub" id="monCpuSub">считаю…</span>
         <span class="mon-bar" aria-hidden="true"><i id="monCpuBar" style="width:0%"></i></span>
+        <svg class="mon-sparkline" id="monCpuSparkline" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true"></svg>
       </article>
       <article class="card mon-vital">
         <span class="mon-vital-label">Память</span>
         <span class="mon-vital-value" id="monRam">—</span>
         <span class="mon-vital-sub" id="monRamSub">считаю…</span>
         <span class="mon-bar" aria-hidden="true"><i id="monRamBar" class="is-blue" style="width:0%"></i></span>
+        <svg class="mon-sparkline" id="monRamSparkline" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true"></svg>
       </article>
       <article class="card mon-vital">
         <span class="mon-vital-label">Диск</span>
@@ -120,6 +122,31 @@
         if (bar) bar.style.width = `${Math.min(100, Math.max(0, Number(percent) || 0))}%`;
       }
 
+      function renderSparkline(svgId, points, colorClass) {
+        const svg = $(svgId);
+        if (!svg) return;
+        if (!points || points.length < 2) {
+          svg.innerHTML = "";
+          return;
+        }
+        const width = 120;
+        const height = 26;
+        const step = width / (points.length - 1);
+        const coords = points.map((val, idx) => {
+          const x = (idx * step).toFixed(1);
+          const y = (height - (Math.min(100, Math.max(0, Number(val) || 0)) / 100) * (height - 4) - 2).toFixed(1);
+          return `${x},${y}`;
+        });
+        const linePath = coords.join(" ");
+        const firstX = coords[0].split(",")[0];
+        const lastX = coords[coords.length - 1].split(",")[0];
+        const areaPath = `M ${firstX},${height} L ${coords.join(" L ")} L ${lastX},${height} Z`;
+        svg.innerHTML = `
+          <path class="sparkline-area is-${colorClass}" d="${areaPath}"/>
+          <polyline class="sparkline-line is-${colorClass}" points="${linePath}"/>
+        `;
+      }
+
       /* --- витрина --- */
 
       function renderVitals() {
@@ -147,6 +174,12 @@
 
         $("#monUptime").textContent = fmtUptime(system.uptime);
         $("#monUptimeSub").textContent = "без перезагрузки";
+
+        const history = data.history || [];
+        if (history.length >= 2) {
+          renderSparkline("#monCpuSparkline", history.map((h) => h.cpu), "cpu");
+          renderSparkline("#monRamSparkline", history.map((h) => h.memory), "ram");
+        }
       }
 
       /* --- список --- */

@@ -81,6 +81,25 @@ class ClipboardStoreTests(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]["text"], "Привет Мир")
 
+    def test_classification_and_word_count(self) -> None:
+        self.store.add("https://github.com/project/repo")
+        self.store.add("def hello_world():\n    return 42\n")
+        self.store.add("Простой короткий текст для теста")
+
+        items = self.store.listing()
+        url_item = next(i for i in items if i["type"] == "url")
+        self.assertEqual(url_item["type"], "url")
+
+        code_item = next(i for i in items if i["type"] == "code")
+        self.assertEqual(code_item["type"], "code")
+
+        text_item = next(i for i in items if i["type"] == "text")
+        self.assertEqual(text_item["words"], 5)
+
+        self.assertEqual(len(self.store.listing(kind="url")), 1)
+        self.assertEqual(len(self.store.listing(kind="code")), 1)
+        self.assertEqual(len(self.store.listing(kind="text")), 1)
+
     def test_persists_between_instances(self) -> None:
         self.store.add("сохранись")
 

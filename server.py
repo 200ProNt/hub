@@ -30,6 +30,7 @@ from tools import (
     monitor,
     notes,
     search,
+    shortcuts,
     trash,
 )
 from tools.registry import TOOLS
@@ -41,10 +42,21 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.2.0.1"
+VERSION = "1.2.5"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.2.5",
+        "date": "2026-11-19",
+        "items": [
+            "Буфер обмена: фильтрация по типу контента (все, ссылки, код, текст), подсчёт слов и символов на карточках.",
+            "Мониторинг ПК: живые мини-графики нагрузки CPU и оперативной памяти за последние 30 измерений.",
+            "Экспорт заметок: скачивание отдельных записей и всей базы заметок в форматах Markdown (.md) и TXT.",
+            "Сортировка и Уборка: интерактивная настройка правил — добавление своих категорий, расширений и мусорных файлов прямо из интерфейса.",
+            "Интеграция с Windows: создание и удаление ярлыков на Рабочем столе и в меню «Пуск» в один клик.",
+        ],
+    },
     {
         "version": "1.2.0.1",
         "date": "2026-11-19",
@@ -292,6 +304,20 @@ class HubHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_text_attachment(self, content: str, filename: str, content_type: str = "text/plain") -> None:
+        data = content.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        quoted_filename = filename.replace('"', '\\"')
+        self.send_header("Content-Disposition", f'attachment; filename="{quoted_filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self' 'unsafe-inline' data:; connect-src 'self'")
+        self.end_headers()
+        self.wfile.write(data)
+
     def _send_thumb(self, raw_path: str) -> None:
         """Превью для найденных дубликатов: только файлы из последнего скана."""
         path = Path(unquote(raw_path))
@@ -354,13 +380,14 @@ class HubHandler(BaseHTTPRequestHandler):
             if path == "/api/clipboard/items":
                 query = parse_qs(parsed.query)
                 text = (query.get("q") or [""])[0]
+                kind = (query.get("type") or [""])[0]
                 try:
                     limit = max(1, min(1000, int((query.get("limit") or ["150"])[0])))
                 except ValueError:
                     limit = 150
                 return self._send_json(
                     {
-                        "items": store().listing(text, limit),
+                        "items": store().listing(text, limit, kind=kind),
                         "total": store().count(),
                         "paused": watcher().paused.is_set(),
                     }
@@ -375,6 +402,8 @@ class HubHandler(BaseHTTPRequestHandler):
                 )
             if path == "/api/sorter/last-run":
                 return self._send_json({"last_run": filesorter.last_run()})
+            if path == "/api/sorter/rules":
+                return self._send_json({"rules": filesorter.get_rules()})
             if path == "/api/dupes/last-run":
                 return self._send_json({"last_run": duplicates.last_run()})
             if path == "/api/diskmap/last-run":
@@ -386,10 +415,25 @@ class HubHandler(BaseHTTPRequestHandler):
                 return self._send_json({"last_run": bigfiles.last_run()})
             if path == "/api/cleanup/last-run":
                 return self._send_json({"last_run": cleanup.last_run()})
+            if path == "/api/cleanup/rules":
+                return self._send_json(cleanup.get_rules())
             if path == "/api/notes/items":
                 query = parse_qs(parsed.query)
                 text = (query.get("q") or [""])[0]
                 return self._send_json({"items": notes.store().listing(text), "total": notes.store().count()})
+            if path == "/api/notes/export":
+                query = parse_qs(parsed.query)
+                note_id = (query.get("id") or [""])[0]
+                fmt = (query.get("format") or ["md"])[0]
+                mime = "text/markdown" if fmt == "md" else "text/plain"
+                try:
+                    if note_id:
+                        filename, content = notes.store().export_note(note_id, fmt)
+                    else:
+                        filename, content = notes.store().export_all(fmt)
+                    return self._send_text_attachment(content, filename, mime)
+                except Exception as exc:
+                    return self._send_json({"error": str(exc)}, 400)
             if path == "/api/monitor/snapshot":
                 return self._send_json(monitor.snapshot())
             if path == "/api/trash/runs":
@@ -403,6 +447,8 @@ class HubHandler(BaseHTTPRequestHandler):
                 )
             if path == "/api/autostart":
                 return self._send_json(autostart.status())
+            if path == "/api/shortcuts/status":
+                return self._send_json(shortcuts.status())
             if path == "/api/search":
                 query = parse_qs(parsed.query)
                 text = (query.get("q") or [""])[0]
@@ -497,6 +543,11 @@ class HubHandler(BaseHTTPRequestHandler):
         if path == "/api/sorter/undo":
             return filesorter.undo(str(body.get("run_id", "")))
 
+        if path == "/api/sorter/rules":
+            if body.get("reset"):
+                return {"rules": filesorter.reset_rules()}
+            return {"rules": filesorter.save_rules(body.get("rules") or [])}
+
         if path == "/api/dupes/scan":
             recursive = body.get("recursive")
             try:
@@ -582,6 +633,11 @@ class HubHandler(BaseHTTPRequestHandler):
         if path == "/api/cleanup/undo":
             return cleanup.undo(str(body.get("run_id", "")))
 
+        if path == "/api/cleanup/rules":
+            if body.get("reset"):
+                return cleanup.reset_rules()
+            return cleanup.save_rules(body.get("rules") or {})
+
         if path == "/api/monitor/terminate":
             try:
                 pid = int(body.get("pid", 0))
@@ -627,6 +683,20 @@ class HubHandler(BaseHTTPRequestHandler):
 
         if path == "/api/autostart":
             return autostart.set_enabled(bool(body.get("enabled")))
+
+        if path == "/api/shortcuts/create":
+            target = str(body.get("target") or "desktop")
+            try:
+                return shortcuts.create(target)
+            except shortcuts.ShortcutError as exc:
+                raise ApiError(str(exc), 400) from exc
+
+        if path == "/api/shortcuts/remove":
+            target = str(body.get("target") or "desktop")
+            try:
+                return shortcuts.remove(target)
+            except shortcuts.ShortcutError as exc:
+                raise ApiError(str(exc), 400) from exc
 
         if path in ("/api/pick-folder", "/api/sorter/pick-folder", "/api/bigfiles/pick-folder",
                     "/api/cleanup/pick-folder", "/api/compare/pick-folder"):

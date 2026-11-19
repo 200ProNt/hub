@@ -147,6 +147,23 @@ class CleanupTestCase(unittest.TestCase):
         with self.assertRaises(cleanup.RemoveError):
             cleanup.undo("del_20000101_00000000")
 
+    def test_custom_cleanup_rules(self):
+        custom_file = self.root / "cleanup_rules.json"
+        os.environ["HUB_CLEANUP_RULES_FILE"] = str(custom_file)
+        try:
+            saved = cleanup.save_rules({"suffixes": [".custom_junk", ".trashme"], "names": ["my_junk.dat"]})
+            self.assertIn(".custom_junk", saved["suffixes"])
+            self.assertIn("my_junk.dat", saved["names"])
+            self.assertTrue(cleanup._junk("my_junk.dat"))
+            self.assertTrue(cleanup._junk("something.custom_junk"))
+
+            reset = cleanup.reset_rules()
+            self.assertNotIn(".custom_junk", reset["suffixes"])
+            self.assertFalse(cleanup._junk("something.custom_junk"))
+        finally:
+            os.environ.pop("HUB_CLEANUP_RULES_FILE", None)
+            cleanup.reset_rules()
+
 
 if __name__ == "__main__":
     unittest.main()

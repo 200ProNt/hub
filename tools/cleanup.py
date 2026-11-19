@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 import threading
@@ -26,6 +27,83 @@ JUNK_SUFFIXES = {
     ".crdownload", ".download", ".dmp", ".chk", ".cache", ".log.old",
 }
 JUNK_NAMES = {"thumbs.db", "ehthumbs.db", ".ds_store"}
+
+DEFAULT_JUNK_SUFFIXES = set(JUNK_SUFFIXES)
+DEFAULT_JUNK_NAMES = set(JUNK_NAMES)
+
+
+def _rules_file() -> Path:
+    override = os.environ.get("HUB_CLEANUP_RULES_FILE")
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parent.parent / "data" / "cleanup_rules.json"
+
+
+def get_rules() -> dict:
+    return {
+        "suffixes": sorted(list(JUNK_SUFFIXES)),
+        "names": sorted(list(JUNK_NAMES)),
+    }
+
+
+def load_rules() -> dict:
+    rf = _rules_file()
+    if rf.exists():
+        try:
+            raw = json.loads(rf.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                suffixes = set(raw.get("suffixes", []))
+                names = set(raw.get("names", []))
+                if suffixes:
+                    JUNK_SUFFIXES.clear()
+                    JUNK_SUFFIXES.update(suffixes)
+                if names:
+                    JUNK_NAMES.clear()
+                    JUNK_NAMES.update(names)
+                return get_rules()
+        except Exception:
+            pass
+    return get_rules()
+
+
+def save_rules(rules: dict) -> dict:
+    if isinstance(rules, dict):
+        new_suffixes = {
+            (s.lower().strip() if s.strip().startswith(".") else f".{s.lower().strip()}")
+            for s in rules.get("suffixes", [])
+            if s and s.strip()
+        }
+        new_names = {n.lower().strip() for n in rules.get("names", []) if n and n.strip()}
+        if new_suffixes:
+            JUNK_SUFFIXES.clear()
+            JUNK_SUFFIXES.update(new_suffixes)
+        if new_names:
+            JUNK_NAMES.clear()
+            JUNK_NAMES.update(new_names)
+        rf = _rules_file()
+        try:
+            rf.parent.mkdir(parents=True, exist_ok=True)
+            rf.write_text(json.dumps(get_rules(), ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+    return get_rules()
+
+
+def reset_rules() -> dict:
+    rf = _rules_file()
+    if rf.exists():
+        try:
+            rf.unlink()
+        except OSError:
+            pass
+    JUNK_SUFFIXES.clear()
+    JUNK_SUFFIXES.update(DEFAULT_JUNK_SUFFIXES)
+    JUNK_NAMES.clear()
+    JUNK_NAMES.update(DEFAULT_JUNK_NAMES)
+    return get_rules()
+
+
+load_rules()
 
 
 class ScanError(RuntimeError):

@@ -90,6 +90,26 @@ class NotesTestCase(unittest.TestCase):
             ["created", "id", "pinned", "text", "title", "updated"],
         )
 
+    def test_export_note_markdown_and_txt(self):
+        note = self.store.create("Список дел", "- Купить молоко\n- Позвонить маме")
+        filename_md, content_md = self.store.export_note(note["id"], "md")
+        self.assertTrue(filename_md.endswith(".md"))
+        self.assertIn("# Список дел", content_md)
+        self.assertIn("- Купить молоко", content_md)
+
+        filename_txt, content_txt = self.store.export_note(note["id"], "txt")
+        self.assertTrue(filename_txt.endswith(".txt"))
+        self.assertIn("Список дел", content_txt)
+        self.assertIn("- Позвонить маме", content_txt)
+
+    def test_export_all_notes(self):
+        self.store.create("Заметка 1", "Текст 1")
+        self.store.create("Заметка 2", "Текст 2")
+        filename_all, content_all = self.store.export_all("md")
+        self.assertTrue(filename_all.endswith(".md"))
+        self.assertIn("Заметка 1", content_all)
+        self.assertIn("Заметка 2", content_all)
+
 
 if __name__ == "__main__":
     unittest.main()

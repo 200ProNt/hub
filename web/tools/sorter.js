@@ -34,7 +34,10 @@
     <section class="card picker">
       <div class="picker-head">
         <h2>Где наводим порядок</h2>
-        <span class="pill pill-quiet">по типам файлов</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn ghost small" id="sorterRulesBtn" type="button">Настроить правила</button>
+          <span class="pill pill-quiet">по типам файлов</span>
+        </div>
       </div>
       <div class="field-row">
         <div class="path-field">
@@ -55,6 +58,20 @@
       <div class="undo-banner hidden" id="sorterUndoBanner" role="status">
         <span class="undo-banner-text" id="sorterUndoText"></span>
         <button class="btn tiny" id="sorterUndoBtn" type="button">Отменить</button>
+      </div>
+    </section>
+
+    <section class="card rules-card hidden" id="sorterRulesCard">
+      <div class="rules-head">
+        <h3>Категории и расширения</h3>
+        <div class="rules-actions">
+          <button class="btn ghost small" id="sorterRulesReset" type="button">По умолчанию</button>
+          <button class="btn primary small" id="sorterRulesSave" type="button">Сохранить</button>
+        </div>
+      </div>
+      <div class="rules-list" id="sorterRulesList"></div>
+      <div class="rules-foot">
+        <button class="btn ghost small" id="sorterRulesAdd" type="button">+ Добавить категорию</button>
       </div>
     </section>
 
@@ -488,6 +505,81 @@
       }
 
       /* --- события --- */
+
+      function renderRules(rulesList) {
+        const container = $("#sorterRulesList");
+        container.innerHTML = rulesList.map((r, idx) => `
+          <div class="rules-row" data-idx="${idx}">
+            <input class="rules-cat-input" type="text" value="${escape(r.name)}" placeholder="Категория" aria-label="Имя категории">
+            <input class="rules-ext-input" type="text" value="${escape(r.extensions.join(", "))}" placeholder=".ext, .ext2" aria-label="Расширения">
+            <button class="mini-btn danger" type="button" data-act="del-rule" title="Удалить категорию">×</button>
+          </div>
+        `).join("");
+      }
+
+      async function openRules() {
+        const card = $("#sorterRulesCard");
+        const isHidden = card.classList.contains("hidden");
+        if (isHidden) {
+          try {
+            const res = await Hub.api("/api/sorter/rules");
+            renderRules(res.rules || []);
+            card.classList.remove("hidden");
+          } catch (e) {
+            Hub.toast(e.message);
+          }
+        } else {
+          card.classList.add("hidden");
+        }
+      }
+
+      $("#sorterRulesBtn").addEventListener("click", openRules);
+
+      $("#sorterRulesAdd").addEventListener("click", () => {
+        const container = $("#sorterRulesList");
+        const row = document.createElement("div");
+        row.className = "rules-row";
+        row.innerHTML = `
+          <input class="rules-cat-input" type="text" value="" placeholder="Новая категория" aria-label="Имя категории">
+          <input class="rules-ext-input" type="text" value="" placeholder=".ext1, .ext2" aria-label="Расширения">
+          <button class="mini-btn danger" type="button" data-act="del-rule" title="Удалить категорию">×</button>
+        `;
+        container.appendChild(row);
+        row.querySelector(".rules-cat-input").focus();
+      });
+
+      $("#sorterRulesList").addEventListener("click", (event) => {
+        const btn = event.target.closest('[data-act="del-rule"]');
+        if (btn) {
+          const row = btn.closest(".rules-row");
+          if (row) row.remove();
+        }
+      });
+
+      $("#sorterRulesReset").addEventListener("click", async () => {
+        try {
+          const res = await Hub.api("/api/sorter/rules", { reset: true });
+          renderRules(res.rules || []);
+          Hub.toast("Категории сброшены по умолчанию");
+        } catch (e) {
+          Hub.toast(e.message);
+        }
+      });
+
+      $("#sorterRulesSave").addEventListener("click", async () => {
+        const rows = $("#sorterRulesList").querySelectorAll(".rules-row");
+        const newRules = Array.from(rows).map((row) => ({
+          name: row.querySelector(".rules-cat-input").value.trim(),
+          extensions: row.querySelector(".rules-ext-input").value.split(",").map((e) => e.trim()).filter(Boolean),
+        })).filter((r) => r.name);
+        try {
+          const res = await Hub.api("/api/sorter/rules", { rules: newRules });
+          renderRules(res.rules || []);
+          Hub.toast("Правила сортировки сохранены");
+        } catch (e) {
+          Hub.toast(e.message);
+        }
+      });
 
       $("#sorterScan").addEventListener("click", () => scanFolder(false));
       folderInput.addEventListener("keydown", (event) => {

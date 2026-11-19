@@ -85,6 +85,96 @@ for _category, _extensions in CATEGORY_RULES:
 CATEGORY_ORDER: list[str] = [name for name, _ in CATEGORY_RULES] + [FALLBACK_CATEGORY]
 CATEGORY_NAMES: set[str] = set(CATEGORY_ORDER)
 
+DEFAULT_CATEGORY_RULES: list[tuple[str, set[str]]] = [
+    (cat, set(exts)) for cat, exts in CATEGORY_RULES
+]
+
+
+def _rules_file() -> Path:
+    override = os.environ.get("HUB_SORTER_RULES_FILE")
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parent.parent / "data" / "sorter_rules.json"
+
+
+def _rebuild_category_maps(rules: list[tuple[str, set[str]]]) -> None:
+    global CATEGORY_RULES, EXT_TO_CATEGORY, CATEGORY_ORDER, CATEGORY_NAMES
+    CATEGORY_RULES = rules
+    EXT_TO_CATEGORY = {}
+    for _cat, _exts in rules:
+        for _ext in _exts:
+            EXT_TO_CATEGORY.setdefault(_ext.lower(), _cat)
+    CATEGORY_ORDER = [name for name, _ in rules] + [FALLBACK_CATEGORY]
+    CATEGORY_NAMES = set(CATEGORY_ORDER)
+
+
+def get_rules() -> list[dict]:
+    return [{"name": name, "extensions": sorted(list(exts))} for name, exts in CATEGORY_RULES]
+
+
+def load_rules() -> list[dict]:
+    rf = _rules_file()
+    if rf.exists():
+        try:
+            raw = json.loads(rf.read_text(encoding="utf-8"))
+            if isinstance(raw, list) and raw:
+                parsed = []
+                for entry in raw:
+                    if isinstance(entry, dict) and entry.get("name"):
+                        cat_name = str(entry["name"]).strip()
+                        exts = {
+                            (e.lower().strip() if e.strip().startswith(".") else f".{e.lower().strip()}")
+                            for e in entry.get("extensions", [])
+                            if e and e.strip()
+                        }
+                        parsed.append((cat_name, exts))
+                if parsed:
+                    _rebuild_category_maps(parsed)
+                    return get_rules()
+        except Exception:
+            pass
+    _rebuild_category_maps(list(DEFAULT_CATEGORY_RULES))
+    return get_rules()
+
+
+def save_rules(rules_data: list[dict]) -> list[dict]:
+    parsed: list[tuple[str, set[str]]] = []
+    for entry in rules_data:
+        if isinstance(entry, dict) and entry.get("name"):
+            cat_name = str(entry["name"]).strip()
+            if not cat_name or cat_name == FALLBACK_CATEGORY:
+                continue
+            exts = {
+                (e.lower().strip() if e.strip().startswith(".") else f".{e.lower().strip()}")
+                for e in entry.get("extensions", [])
+                if e and e.strip()
+            }
+            parsed.append((cat_name, exts))
+    if not parsed:
+        parsed = [(cat, set(exts)) for cat, exts in DEFAULT_CATEGORY_RULES]
+    _rebuild_category_maps(parsed)
+    rf = _rules_file()
+    try:
+        rf.parent.mkdir(parents=True, exist_ok=True)
+        rf.write_text(json.dumps(get_rules(), ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+    return get_rules()
+
+
+def reset_rules() -> list[dict]:
+    rf = _rules_file()
+    if rf.exists():
+        try:
+            rf.unlink()
+        except OSError:
+            pass
+    _rebuild_category_maps([(cat, set(exts)) for cat, exts in DEFAULT_CATEGORY_RULES])
+    return get_rules()
+
+
+load_rules()
+
 IGNORED_NAMES = {"desktop.ini", "thumbs.db", ".ds_store"}
 
 RUN_ID_PATTERN = re.compile(r"^run_\d+_[0-9a-f]{8}$")

@@ -5,7 +5,10 @@
     <section class="card picker">
       <div class="picker-head">
         <h2>Что прибрать</h2>
-        <span class="pill pill-quiet">корзина хаба</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn ghost small" id="cleanRulesBtn" type="button">Настроить правила</button>
+          <span class="pill pill-quiet">корзина хаба</span>
+        </div>
       </div>
       <div class="field-row">
         <div class="path-field">
@@ -37,6 +40,24 @@
         <span class="switch-text">Искать временные файлы и кэш</span>
       </label>
       <p class="hint">Показываю старые файлы, мусорные остатки и пустые папки. Ничего не удаляется, пока не отметишь. Выбранное уходит в корзину хаба.</p>
+    </section>
+
+    <section class="card rules-card hidden" id="cleanRulesCard">
+      <div class="rules-head">
+        <h3>Правила мусорных файлов</h3>
+        <div class="rules-actions">
+          <button class="btn ghost small" id="cleanRulesReset" type="button">По умолчанию</button>
+          <button class="btn primary small" id="cleanRulesSave" type="button">Сохранить</button>
+        </div>
+      </div>
+      <div class="rules-field">
+        <label for="cleanRulesSuffixes">Расширения мусорных файлов (через запятую):</label>
+        <input id="cleanRulesSuffixes" type="text" placeholder=".tmp, .bak, .old, .cache">
+      </div>
+      <div class="rules-field">
+        <label for="cleanRulesNames">Имена мусорных файлов (через запятую):</label>
+        <input id="cleanRulesNames" type="text" placeholder="thumbs.db, .ds_store">
+      </div>
     </section>
 
     <div id="cleanUndo" class="hidden" aria-live="polite"></div>
@@ -410,6 +431,49 @@
       }
 
       /* --- события --- */
+
+      async function openRules() {
+        const card = $("#cleanRulesCard");
+        const isHidden = card.classList.contains("hidden");
+        if (isHidden) {
+          try {
+            const res = await Hub.api("/api/cleanup/rules");
+            $("#cleanRulesSuffixes").value = (res.suffixes || []).join(", ");
+            $("#cleanRulesNames").value = (res.names || []).join(", ");
+            card.classList.remove("hidden");
+          } catch (e) {
+            Hub.toast(e.message);
+          }
+        } else {
+          card.classList.add("hidden");
+        }
+      }
+
+      $("#cleanRulesBtn").addEventListener("click", openRules);
+
+      $("#cleanRulesReset").addEventListener("click", async () => {
+        try {
+          const res = await Hub.api("/api/cleanup/rules", { reset: true });
+          $("#cleanRulesSuffixes").value = (res.suffixes || []).join(", ");
+          $("#cleanRulesNames").value = (res.names || []).join(", ");
+          Hub.toast("Правила мусора сброшены по умолчанию");
+        } catch (e) {
+          Hub.toast(e.message);
+        }
+      });
+
+      $("#cleanRulesSave").addEventListener("click", async () => {
+        const suffixes = $("#cleanRulesSuffixes").value.split(",").map((s) => s.trim()).filter(Boolean);
+        const names = $("#cleanRulesNames").value.split(",").map((n) => n.trim()).filter(Boolean);
+        try {
+          const res = await Hub.api("/api/cleanup/rules", { rules: { suffixes, names } });
+          $("#cleanRulesSuffixes").value = (res.suffixes || []).join(", ");
+          $("#cleanRulesNames").value = (res.names || []).join(", ");
+          Hub.toast("Правила мусора сохранены");
+        } catch (e) {
+          Hub.toast(e.message);
+        }
+      });
 
       $("#cleanScan").addEventListener("click", () => load(folderInput.value));
       folderInput.addEventListener("keydown", (event) => {

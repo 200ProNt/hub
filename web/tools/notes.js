@@ -9,12 +9,20 @@
         </svg>
         <input id="notesQuery" type="search" placeholder="Найти по словам" spellcheck="false" autocomplete="off" aria-label="Поиск по заметкам">
       </div>
-      <button class="btn primary" id="notesNew" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M12 5.5v13M5.5 12h13"/>
-        </svg>
-        Новая заметка
-      </button>
+      <div class="notes-actions">
+        <button class="btn ghost" id="notesExportAll" type="button" title="Экспортировать заметки">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Экспорт
+        </button>
+        <button class="btn primary" id="notesNew" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5.5v13M5.5 12h13"/>
+          </svg>
+          Новая заметка
+        </button>
+      </div>
     </section>
 
     <section class="card note-editor hidden" id="notesEditor" aria-labelledby="noteEditorTitle">
@@ -52,6 +60,7 @@
   const PIN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5h6M12 3.5v6.2M12 9.7 6.5 15h11L12 9.7M12 15v5.5"/></svg>';
   const PIN_ON_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5h6M12 3.5v6.2M12 9.7 6.5 15h11L12 9.7M12 15v5.5"/></svg>';
   const EDIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5h4l9.4-9.4a2.2 2.2 0 0 0-3.1-3.1L5.4 16.4v3.1z"/></svg>';
+  const EXPORT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
   const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15M9.5 7V5.2A1.7 1.7 0 0 1 11.2 3.5h1.6a1.7 1.7 0 0 1 1.7 1.7V7M6.5 7l.8 12a1.8 1.8 0 0 0 1.8 1.7h5.8A1.8 1.8 0 0 0 16.7 19l.8-12"/></svg>';
 
   window.HubTools.notes = {
@@ -101,6 +110,7 @@
               <div class="note-tools">
                 <button class="mini-btn ${note.pinned ? "is-on" : ""}" type="button" data-act="pin" title="${note.pinned ? "Открепить" : "Закрепить"}" aria-label="${note.pinned ? "Открепить заметку" : "Закрепить заметку"}" aria-pressed="${note.pinned}">${note.pinned ? PIN_ON_ICON : PIN_ICON}</button>
                 <button class="mini-btn" type="button" data-act="edit" title="Изменить" aria-label="Изменить заметку">${EDIT_ICON}</button>
+                <button class="mini-btn" type="button" data-act="export" title="Скачать (Markdown / TXT)" aria-label="Скачать заметку">${EXPORT_ICON}</button>
                 <button class="mini-btn danger" type="button" data-act="delete" title="Удалить" aria-label="Удалить заметку">${TRASH_ICON}</button>
               </div>
             </header>
@@ -243,9 +253,45 @@
         }
       }
 
+      async function exportNote(note) {
+        if (!note || state.closed) return;
+        const choice = await Hub.choose({
+          title: "Экспорт заметки",
+          text: `В каком формате скачать «${escape(note.title || "Без заголовка")}»?`,
+          actions: [
+            { id: "md", label: "Markdown (.md)" },
+            { id: "txt", label: "Текст (.txt)" },
+            { id: "cancel", label: "Отмена" },
+          ],
+        });
+        if (choice && choice !== "cancel") {
+          window.location.href = `/api/notes/export?id=${encodeURIComponent(note.id)}&format=${choice}`;
+        }
+      }
+
+      async function exportAll() {
+        if (state.items.length === 0) {
+          Hub.toast("Пока нет заметок для экспорта");
+          return;
+        }
+        const choice = await Hub.choose({
+          title: "Экспорт всех заметок",
+          text: `Сохранить все ${state.items.length} ${plural(state.items.length, "заметку", "заметки", "заметок")} одним файлом?`,
+          actions: [
+            { id: "md", label: "Markdown (.md)" },
+            { id: "txt", label: "Текст (.txt)" },
+            { id: "cancel", label: "Отмена" },
+          ],
+        });
+        if (choice && choice !== "cancel") {
+          window.location.href = `/api/notes/export?format=${choice}`;
+        }
+      }
+
       /* --- события --- */
 
       $("#notesNew").addEventListener("click", () => openEditor(null));
+      $("#notesExportAll").addEventListener("click", exportAll);
       $("#noteCancel").addEventListener("click", closeEditor);
       $("#noteSave").addEventListener("click", save);
       $("#noteText").addEventListener("input", syncCount);
@@ -275,6 +321,7 @@
         if (!note) return;
         if (button.dataset.act === "pin") togglePin(note);
         else if (button.dataset.act === "edit") openEditor(note);
+        else if (button.dataset.act === "export") exportNote(note);
         else if (button.dataset.act === "delete") removeNote(note);
       });
 

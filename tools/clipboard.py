@@ -182,6 +182,38 @@ def is_sensitive(text: str) -> bool:
     return any(pattern.search(text) for pattern in SENSITIVE_PATTERNS)
 
 
+def classify_text(text: str) -> str:
+    """Определяет тип текста: 'url', 'code' или 'text'."""
+    s = text.strip()
+    if re.match(r"^https?://[^\s]+$", s, re.IGNORECASE):
+        return "url"
+
+    strong_code_patterns = [
+        r"^\s*(?:def|class|function|async\s+def|const|let|var|import|from\s+\w+\s+import|export\s+(?:default|const|let|var|function))\s+\w+",
+        r"^\s*(?:public|private|protected)\s+(?:static\s+)?(?:void|int|string|bool|\w+)\s+\w+",
+        r"<\/?(?:div|span|p|a|html|body|script|style|table|tr|td|h[1-6]|ul|li|button|input)[^>]*>",
+        r"^\s*(?:SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|CREATE\s+TABLE)\s+",
+        r"^\s*[{[][\s\S]*[}\]]$",
+    ]
+    for pattern in strong_code_patterns:
+        if re.search(pattern, s, re.MULTILINE | re.IGNORECASE):
+            return "code"
+
+    lines = [line.strip() for line in s.splitlines() if line.strip()]
+    if len(lines) >= 2:
+        syntax_patterns = [
+            r"[{};]\s*$",
+            r"^\s*(?:if|elif|else|for|while|try|except|catch|finally|switch|case)[\s(:]",
+            r"(?:=>|===|!==|->|::)",
+            r"^\s*return\s+",
+        ]
+        hits = sum(1 for pattern in syntax_patterns if re.search(pattern, s, re.MULTILINE))
+        if hits >= 2:
+            return "code"
+
+    return "text"
+
+
 # --- Хранилище -------------------------------------------------------------
 
 
@@ -272,6 +304,8 @@ class ClipboardStore:
         text = item["text"]
         lines = [" ".join(line.split()) for line in text.splitlines()]
         preview = "\n".join(line for line in lines if line)[:280]
+        words = len(text.split())
+        kind = classify_text(text)
         return {
             "id": item["id"],
             "text": text,
@@ -279,15 +313,19 @@ class ClipboardStore:
             "time": item["time"],
             "pinned": item["pinned"],
             "chars": len(text),
+            "words": words,
             "lines": text.count("\n") + 1,
+            "type": kind,
         }
 
-    def listing(self, query: str = "", limit: int = 150) -> list[dict]:
+    def listing(self, query: str = "", limit: int = 150, kind: str = "") -> list[dict]:
         with self._lock:
             items = list(self._items)
         if query:
             needle = query.strip().lower()
             items = [item for item in items if needle in item["text"].lower()]
+        if kind and kind in {"url", "code", "text"}:
+            items = [item for item in items if classify_text(item["text"]) == kind]
         items.sort(key=lambda item: (0 if item["pinned"] else 1, -item["time"]))
         return [self._public(item) for item in items[:limit]]
 
