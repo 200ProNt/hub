@@ -3089,11 +3089,21 @@ html[data-motion="off"] .clip {
 [data-glass="on"] .home-vital-card,
 [data-glass="on"] .home-todo-item,
 [data-glass="on"] .home-clip-item,
-[data-glass="on"] input,
+[data-glass="on"] .search,
+[data-glass="on"] .path-field,
+[data-glass="on"] .select-field,
+[data-glass="on"] .notes-search,
+[data-glass="on"] .rules-cat-input,
+[data-glass="on"] .rules-ext-input,
+[data-glass="on"] .rules-field input,
+[data-glass="on"] .note-title-input,
+[data-glass="on"] .note-text-input,
+[data-glass="on"] .home-quick-input,
 [data-glass="on"] textarea {
   border-radius: var(--radius-md) !important;
   background: rgba(255, 255, 255, 0.45) !important;
   backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
   border: 1px solid rgba(255, 255, 255, 0.5) !important;
 }
 
@@ -3101,12 +3111,53 @@ html[data-motion="off"] .clip {
 [data-theme="dark"][data-glass="on"] .home-vital-card,
 [data-theme="dark"][data-glass="on"] .home-todo-item,
 [data-theme="dark"][data-glass="on"] .home-clip-item,
-[data-theme="dark"][data-glass="on"] input,
+[data-theme="dark"][data-glass="on"] .search,
+[data-theme="dark"][data-glass="on"] .path-field,
+[data-theme="dark"][data-glass="on"] .select-field,
+[data-theme="dark"][data-glass="on"] .notes-search,
+[data-theme="dark"][data-glass="on"] .rules-cat-input,
+[data-theme="dark"][data-glass="on"] .rules-ext-input,
+[data-theme="dark"][data-glass="on"] .rules-field input,
+[data-theme="dark"][data-glass="on"] .note-title-input,
+[data-theme="dark"][data-glass="on"] .note-text-input,
+[data-theme="dark"][data-glass="on"] .home-quick-input,
 [data-theme="dark"][data-glass="on"] textarea {
   border-radius: var(--radius-md) !important;
   background: rgba(255, 255, 255, 0.04) !important;
   backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
   border: 1px solid rgba(255, 255, 255, 0.09) !important;
+}
+
+/* Изоляция полей ввода внутри составных контейнеров (поиск, путь, выпадающие списки) */
+[data-glass="on"] .search input,
+[data-glass="on"] .path-field input,
+[data-glass="on"] .notes-search input,
+[data-glass="on"] .palette-field input,
+[data-glass="on"] .select-field select {
+  background: transparent !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-glass="on"] input[type="checkbox"],
+[data-glass="on"] input[type="radio"] {
+  background: transparent !important;
+  border: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-glass="on"] .search:focus-within,
+[data-glass="on"] .path-field:focus-within,
+[data-glass="on"] .notes-search:focus-within,
+[data-glass="on"] .select-field:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--ring) !important;
 }
 
 /* Кнопка открытия настроек в сайдбаре */

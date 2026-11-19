@@ -33,7 +33,7 @@ function setup() {
 
   const calls = [];
   const Hub = {
-    version: '1.3.1.1',
+    version: '1.3.1.2',
     escapeHtml: (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
     toast(m) { calls.push({ type: 'toast', message: m }); },
     playSound(type) { calls.push({ type: 'sound', sound: type }); },
@@ -45,7 +45,7 @@ function setup() {
           todos: [{ note_id: 'note_1', note_title: 'Планы', line_idx: 0, text: 'Купить хлеб' }],
           recent_clips: [{ id: 'clip_1', preview: 'https://example.com' }],
           stats: { notes_count: 5, clipboard_count: 10, trash_count: 1, trash_size: 1024 },
-          version: '1.3.1.1',
+          version: '1.3.1.2',
         };
       }
       return {};
