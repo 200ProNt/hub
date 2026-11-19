@@ -110,6 +110,12 @@ class NotesTestCase(unittest.TestCase):
         self.assertIn("Заметка 1", content_all)
         self.assertIn("Заметка 2", content_all)
 
+    def test_tags_extraction(self):
+        note = self.store.create("План на день #работа", "Нужно сделать задачу #hub и купить кофе #еда")
+        listed = self.store.listing()
+        found = next(item for item in listed if item["id"] == note["id"])
+        self.assertEqual(sorted(found["tags"]), ["hub", "еда", "работа"])
+
 
 if __name__ == "__main__":
     unittest.main()

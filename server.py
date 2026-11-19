@@ -27,6 +27,7 @@ from tools import (
     duplicates,
     fileguard,
     filesorter,
+    images,
     monitor,
     notes,
     search,
@@ -42,10 +43,21 @@ DATA_DIR = BASE_DIR / "data"
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.2.5"
+VERSION = "1.2.6"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.2.6",
+        "date": "2026-11-19",
+        "items": [
+            "Сжатие картинок: новый инструмент — смена формата (PNG, JPEG, WebP), качественное сжатие, масштабирование (Full HD, HD, веб, иконка), вставка из буфера обмена и сохранение на диск.",
+            "Заметки: поддержка интерактивных чекбоксов [ ] / [x] с моментальным переключением по клику, форматирование Markdown (заголовки, жирный текст, списки) и фильтрация по тегам #тег.",
+            "Буфер обмена: фильтр закреплённых заметок/шаблонов, быстрое добавление своих сниппетов, форматирование текста (очистка лишних пробелов, регистр, транслитерация).",
+            "Сравнение папок: двусторонняя синхронизация — копирование недостающих файлов и папок в один клик прямо из отчёта сравнения.",
+            "Интеграция с Windows: безопасное выключение сервера Hub в один клик из интерфейса и создание полного резервного ZIP-архива всех данных (папка data/) для переноса.",
+        ],
+    },
     {
         "version": "1.2.5",
         "date": "2026-11-19",
@@ -318,6 +330,19 @@ class HubHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_bytes_attachment(self, data: bytes, filename: str, content_type: str = "application/octet-stream") -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        quoted_filename = filename.replace('"', '\\"')
+        self.send_header("Content-Disposition", f'attachment; filename="{quoted_filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self' 'unsafe-inline' data:; connect-src 'self'")
+        self.end_headers()
+        self.wfile.write(data)
+
     def _send_thumb(self, raw_path: str) -> None:
         """Превью для найденных дубликатов: только файлы из последнего скана."""
         path = Path(unquote(raw_path))
@@ -449,6 +474,24 @@ class HubHandler(BaseHTTPRequestHandler):
                 return self._send_json(autostart.status())
             if path == "/api/shortcuts/status":
                 return self._send_json(shortcuts.status())
+            if path == "/api/system/backup":
+                import io
+                import zipfile
+                from datetime import datetime
+
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    if DATA_DIR.is_dir():
+                        for root, _, files in os.walk(DATA_DIR):
+                            for file in sorted(files):
+                                if file.endswith((".lock", ".tmp")):
+                                    continue
+                                fp = Path(root) / file
+                                arcname = fp.relative_to(DATA_DIR)
+                                zf.write(fp, arcname)
+                buffer.seek(0)
+                filename = f"hub_backup_{datetime.now().strftime('%Y-%m-%d')}.zip"
+                return self._send_bytes_attachment(buffer.getvalue(), filename, "application/zip")
             if path == "/api/search":
                 query = parse_qs(parsed.query)
                 text = (query.get("q") or [""])[0]
@@ -485,6 +528,7 @@ class HubHandler(BaseHTTPRequestHandler):
             cleanup.ScanError,
             cleanup.RemoveError,
             compare.CompareError,
+            images.ImageError,
             monitor.MonitorError,
             notes.NoteError,
             trash.TrashError,
@@ -522,6 +566,16 @@ class HubHandler(BaseHTTPRequestHandler):
 
         if path == "/api/clipboard/clear":
             return {"removed": store().clear()}
+
+        if path == "/api/clipboard/add":
+            text = str(body.get("text", ""))
+            pin = bool(body.get("pin", False))
+            item = store().add(text, skip_sensitive=False)
+            if not item:
+                raise ApiError("Не удалось добавить текст (пустой или слишком длинный)")
+            if pin:
+                item = store().toggle_pin(item["id"]) or item
+            return {"item": item}
 
         if path == "/api/clipboard/pause":
             paused = bool(body.get("paused"))
@@ -605,6 +659,20 @@ class HubHandler(BaseHTTPRequestHandler):
         if path == "/api/compare/run":
             return compare.compare(
                 str(body.get("left", "")), str(body.get("right", "")), deep=bool(body.get("deep"))
+            )
+
+        if path == "/api/compare/sync":
+            return compare.sync_entry(
+                str(body.get("source", "")),
+                str(body.get("target", "")),
+                str(body.get("path", "")),
+            )
+
+        if path == "/api/images/save":
+            return images.save_image(
+                str(body.get("folder", "")),
+                str(body.get("filename", "")),
+                str(body.get("data", "")),
             )
 
         if path == "/api/cleanup/scan":
@@ -699,13 +767,30 @@ class HubHandler(BaseHTTPRequestHandler):
                 raise ApiError(str(exc), 400) from exc
 
         if path in ("/api/pick-folder", "/api/sorter/pick-folder", "/api/bigfiles/pick-folder",
-                    "/api/cleanup/pick-folder", "/api/compare/pick-folder"):
+                    "/api/cleanup/pick-folder", "/api/compare/pick-folder", "/api/images/pick-folder"):
             return {"folder": pick_folder(str(body.get("initial", "")))}
 
         if path in ("/api/open", "/api/sorter/open", "/api/bigfiles/open",
-                    "/api/cleanup/open", "/api/compare/open"):
+                    "/api/cleanup/open", "/api/compare/open", "/api/images/open"):
             open_in_explorer(str(body.get("path", "")))
             return {"ok": True}
+
+        if path == "/api/system/shutdown":
+            def _stop() -> None:
+                import time
+                time.sleep(0.3)
+                try:
+                    watcher().stop()
+                except Exception:
+                    pass
+                try:
+                    monitor.stop()
+                except Exception:
+                    pass
+                os._exit(0)
+
+            threading.Thread(target=_stop, daemon=True).start()
+            return {"ok": True, "message": "Сервер Hub остановлен"}
 
         raise ApiError("Неизвестный запрос", 404)
 

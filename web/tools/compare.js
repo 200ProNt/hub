@@ -136,11 +136,19 @@
 
       function rowMarkup(item, index) {
         const meta = item.kind === "dir" ? "папка" : Hub.fmtSize(item.size ?? item.right_size ?? 0);
+        let syncBtn = "";
+        if (item.group === "removed") {
+          syncBtn = `<button class="cmp-sync-btn" type="button" data-sync-src="left" data-path="${escape(item.path)}" title="Скопировать из левой в правую папку">→ В правую</button>`;
+        } else if (item.group === "added") {
+          syncBtn = `<button class="cmp-sync-btn" type="button" data-sync-src="right" data-path="${escape(item.path)}" title="Скопировать из правой в левую папку">← В левую</button>`;
+        }
+
         return `
           <div class="cmp-row cmp-${item.group}" style="--row-index:${Math.min(index, 12)}">
             <span class="cmp-badge">${GROUP_LABEL[item.group]}</span>
             <span class="cmp-path" title="${escape(item.path)}">${escape(item.path)}</span>
             <span class="cmp-meta">${item.group === "changed" ? escape(reasonText(item)) : meta}</span>
+            ${syncBtn}
           </div>`;
       }
 
@@ -250,6 +258,31 @@
         if (!chip) return;
         state.filter = chip.dataset.filter;
         render();
+      });
+
+      $("#cmpList").addEventListener("click", async (event) => {
+        const btn = event.target.closest("button.cmp-sync-btn");
+        if (!btn || btn.classList.contains("is-synced")) return;
+        const srcSide = btn.dataset.syncSrc;
+        const sourceFolder = srcSide === "left" ? state.data.left : state.data.right;
+        const targetFolder = srcSide === "left" ? state.data.right : state.data.left;
+        const relPath = btn.dataset.path;
+        btn.disabled = true;
+        btn.textContent = "Копирую…";
+        try {
+          await Hub.api("/api/compare/sync", {
+            source: sourceFolder,
+            target: targetFolder,
+            path: relPath,
+          });
+          btn.textContent = "✓ Скопировано";
+          btn.classList.add("is-synced");
+          Hub.toast(`Скопировано в ${srcSide === "left" ? "правую" : "левую"} папку`);
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = srcSide === "left" ? "→ В правую" : "← В левую";
+          Hub.toast(err.message);
+        }
       });
 
       $("#cmpDeep").addEventListener("change", () => {

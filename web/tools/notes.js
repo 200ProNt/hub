@@ -25,6 +25,8 @@
       </div>
     </section>
 
+    <div class="note-tags-bar hidden" id="notesTagsBar" role="tablist" aria-label="Теги заметок"></div>
+
     <section class="card note-editor hidden" id="notesEditor" aria-labelledby="noteEditorTitle">
       <div class="note-editor-head">
         <h2 id="noteEditorTitle">Новая заметка</h2>
@@ -74,6 +76,7 @@
       const state = {
         items: [],
         query: "",
+        tag: "",
         editing: null,
         busy: false,
         closed: false,
@@ -89,20 +92,48 @@
       }
 
       function visible() {
+        let items = state.items;
+        if (state.tag) {
+          items = items.filter((n) => Array.isArray(n.tags) && n.tags.includes(state.tag));
+        }
         const needle = state.query.trim().toLowerCase();
-        if (!needle) return state.items;
-        return state.items.filter(
+        if (!needle) return items;
+        return items.filter(
           (note) => note.title.toLowerCase().includes(needle) || note.text.toLowerCase().includes(needle),
         );
       }
 
-      function bodyMarkup(note) {
-        if (!note.text) return '<p class="note-body is-empty">Без текста</p>';
-        const short = note.text.length > 420 ? `${note.text.slice(0, 420)}…` : note.text;
-        return `<p class="note-body">${escape(short)}</p>`;
+      function renderMarkdown(rawText) {
+        if (!rawText) return '<p class="note-body is-empty">Без текста</p>';
+        const lines = rawText.split("\n");
+        const rendered = lines
+          .map((line, idx) => {
+            const trimmed = line.trim();
+            const todoMatch = trimmed.match(/^-\s+\[([ xX])\]\s*(.*)$/);
+            if (todoMatch) {
+              const isDone = todoMatch[1].toLowerCase() === "x";
+              const text = todoMatch[2];
+              return `<div class="note-todo ${isDone ? "is-done" : ""}"><input type="checkbox" ${isDone ? "checked" : ""} data-act="toggle-todo" data-line="${idx}"><span>${escape(text)}</span></div>`;
+            }
+            if (/^#{1,3}\s+/.test(trimmed)) {
+              const hText = trimmed.replace(/^#{1,3}\s+/, "");
+              return `<h4>${escape(hText)}</h4>`;
+            }
+            let escaped = escape(line);
+            escaped = escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
+            escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+            return escaped;
+          })
+          .join("<br>");
+
+        return `<div class="note-body">${rendered}</div>`;
       }
 
       function cardMarkup(note, index) {
+        const tags = Array.isArray(note.tags) && note.tags.length
+          ? `<div class="note-tags-list">${note.tags.map((t) => `<button class="note-tag" type="button" data-tag="${escape(t)}">#${escape(t)}</button>`).join("")}</div>`
+          : "";
+
         return `
           <article class="note ${note.pinned ? "is-pinned" : ""}" style="--row-index:${Math.min(index, 10)}" data-id="${escape(note.id)}">
             <header class="note-head">
@@ -114,7 +145,8 @@
                 <button class="mini-btn danger" type="button" data-act="delete" title="Удалить" aria-label="Удалить заметку">${TRASH_ICON}</button>
               </div>
             </header>
-            ${bodyMarkup(note)}
+            ${renderMarkdown(note.text)}
+            ${tags}
             <footer class="note-foot">
               <span>${fmtDate(note.updated)}</span>
               ${note.chars ? `<span class="clip-dot" aria-hidden="true">·</span><span>${note.chars} ${plural(note.chars, "символ", "символа", "символов")}</span>` : ""}
@@ -123,6 +155,23 @@
       }
 
       function render() {
+        // Рендерим теги сверху
+        const allTags = new Set();
+        state.items.forEach((n) => {
+          if (Array.isArray(n.tags)) n.tags.forEach((t) => allTags.add(t));
+        });
+        const tagsBar = $("#notesTagsBar");
+        if (allTags.size > 0) {
+          tagsBar.classList.remove("hidden");
+          const sortedTags = Array.from(allTags).sort();
+          tagsBar.innerHTML = `
+            <button class="pill ${!state.tag ? "is-active" : ""}" type="button" data-filter-tag="">Все</button>
+            ${sortedTags.map((t) => `<button class="pill ${state.tag === t ? "is-active" : ""}" type="button" data-filter-tag="${escape(t)}">#${escape(t)}</button>`).join("")}
+          `;
+        } else {
+          tagsBar.classList.add("hidden");
+        }
+
         const items = visible();
         $("#notesGrid").innerHTML = items.map(cardMarkup).join("");
         const isEmpty = state.items.length === 0;
@@ -131,6 +180,11 @@
         if (nothingFound) {
           $("#notesEmpty").querySelector("h2").textContent = "Ничего не нашлось";
           $("#notesEmpty").querySelector("p").textContent = "Попробуй другое слово или очисти поиск.";
+        } else if (isEmpty) {
+          $("#notesEmpty").querySelector("h2").textContent = "Короткие записи, которые не потеряются";
+          $("#notesEmpty").querySelector("p").textContent = "Заметки лежат в одном файле на этом компьютере и никуда не отправляются. Заголовок не обязателен.";
+        }
+      }
         } else if (isEmpty) {
           $("#notesEmpty").querySelector("h2").textContent = "Короткие записи, которые не потеряются";
           $("#notesEmpty").querySelector("p").textContent = "Заметки лежат в одном файле на этом компьютере и никуда не отправляются. Заголовок не обязателен.";
@@ -313,7 +367,49 @@
         render();
       });
 
-      $("#notesGrid").addEventListener("click", (event) => {
+      $("#notesTagsBar").addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-filter-tag]");
+        if (!btn) return;
+        state.tag = btn.dataset.filterTag || "";
+        render();
+      });
+
+      $("#notesGrid").addEventListener("click", async (event) => {
+        // Клик по тегу на карточке
+        const tagBtn = event.target.closest("button[data-tag]");
+        if (tagBtn) {
+          state.tag = tagBtn.dataset.tag || "";
+          render();
+          return;
+        }
+
+        // Переключение чекбокса в заметке
+        const checkbox = event.target.closest("input[data-act='toggle-todo']");
+        if (checkbox) {
+          event.stopPropagation();
+          const card = checkbox.closest(".note");
+          if (!card) return;
+          const note = state.items.find((item) => item.id === card.dataset.id);
+          if (!note) return;
+          const lineIdx = Number(checkbox.dataset.line);
+          const lines = note.text.split("\n");
+          if (lines[lineIdx] != null) {
+            if (checkbox.checked) {
+              lines[lineIdx] = lines[lineIdx].replace(/^-\s+\[\s*\]/, "- [x]");
+            } else {
+              lines[lineIdx] = lines[lineIdx].replace(/^-\s+\[[xX]\]/, "- [ ]");
+            }
+            note.text = lines.join("\n");
+            try {
+              await Hub.api("/api/notes/update", { id: note.id, title: note.title, text: note.text });
+              render();
+            } catch (err) {
+              Hub.toast(err.message);
+            }
+          }
+          return;
+        }
+
         const button = event.target.closest("[data-act]");
         if (!button) return;
         const card = button.closest(".note");

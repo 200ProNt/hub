@@ -92,6 +92,23 @@ class CompareTestCase(unittest.TestCase):
         result = compare.compare(str(self.left), str(self.right), deep=True)
         self.assertEqual(result["counts"], {"added": 0, "removed": 0, "changed": 0, "same": 3})
 
+    def test_sync_entry_copies_file_and_creates_parents(self):
+        src_file = self.write(self.left, "nested/doc.txt", b"sync content")
+        rel = "nested/doc.txt"
+        res = compare.sync_entry(str(self.left), str(self.right), rel)
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["kind"], "file")
+        target_file = self.right / "nested" / "doc.txt"
+        self.assertTrue(target_file.is_file())
+        self.assertEqual(target_file.read_bytes(), b"sync content")
+
+    def test_sync_entry_rejects_unsafe_paths(self):
+        with self.assertRaises(compare.CompareError):
+            compare.sync_entry(str(self.left), str(self.right), "../outside.txt")
+        with self.assertRaises(compare.CompareError):
+            compare.sync_entry(str(self.left), str(self.right), "")
+
+
 
 if __name__ == "__main__":
     unittest.main()

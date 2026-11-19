@@ -326,6 +326,8 @@ class ClipboardStore:
             items = [item for item in items if needle in item["text"].lower()]
         if kind and kind in {"url", "code", "text"}:
             items = [item for item in items if classify_text(item["text"]) == kind]
+        elif kind == "pinned":
+            items = [item for item in items if item["pinned"]]
         items.sort(key=lambda item: (0 if item["pinned"] else 1, -item["time"]))
         return [self._public(item) for item in items[:limit]]
 

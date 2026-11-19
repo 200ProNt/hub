@@ -31,6 +31,22 @@ def path() -> Path:
     return Path(__file__).resolve().parent.parent / "data" / "notes.json"
 
 
+def extract_tags(text: str) -> list[str]:
+    """Извлекает хештеги (#тег) из текста."""
+    if not text:
+        return []
+    import re
+    raw = re.findall(r"(?:^|[\s,;])#([a-zA-Zа-яА-ЯёЁ0-9_-]+)", text)
+    seen = set()
+    tags = []
+    for tag in raw:
+        t = tag.lower()
+        if t not in seen:
+            seen.add(t)
+            tags.append(t)
+    return tags
+
+
 class NotesStore:
     def __init__(self, file: Path | None = None) -> None:
         self.file = file or path()
@@ -126,6 +142,7 @@ class NotesStore:
 
     @staticmethod
     def _public(note: dict) -> dict:
+        combined = f"{note.get('title', '')} {note.get('text', '')}"
         return {
             "id": note["id"],
             "title": note["title"],
@@ -134,6 +151,7 @@ class NotesStore:
             "created": note["created"],
             "updated": note["updated"],
             "chars": len(note["text"]),
+            "tags": extract_tags(combined),
         }
 
     def listing(self, query: str = "") -> list[dict]:

@@ -165,3 +165,40 @@ def compare(left: str, right: str, deep: bool = False) -> dict:
         "truncated": left_count > MAX_ENTRIES or right_count > MAX_ENTRIES,
         "seconds": round(time.perf_counter() - started, 2),
     }
+
+
+def sync_entry(source_root: str, target_root: str, relative_path: str) -> dict:
+    """Копирует файл или создаёт папку из исходной директории в целевую."""
+    source_base = _folder(source_root, "исходную")
+    target_base = _folder(target_root, "целевую")
+    if not relative_path or not relative_path.strip():
+        raise CompareError("Укажи относительный путь")
+
+    clean_rel = Path(relative_path)
+    if clean_rel.is_absolute() or ".." in clean_rel.parts:
+        raise CompareError("Небезопасный относительный путь")
+
+    src = (source_base / clean_rel).resolve()
+    dst = (target_base / clean_rel).resolve()
+
+    try:
+        src.relative_to(source_base)
+        dst.relative_to(target_base)
+    except ValueError:
+        raise CompareError("Путь выходит за пределы папки")
+
+    if not src.exists():
+        raise CompareError("Исходный файл или папка не найдены")
+
+    try:
+        if src.is_dir():
+            dst.mkdir(parents=True, exist_ok=True)
+            return {"ok": True, "path": relative_path, "kind": "dir"}
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy2(src, dst)
+        return {"ok": True, "path": relative_path, "kind": "file", "size": dst.stat().st_size}
+    except OSError as exc:
+        raise CompareError(f"Ошибка копирования: {exc}") from exc
+

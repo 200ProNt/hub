@@ -55,6 +55,8 @@
         <div class="about-actions">
           <button class="btn ghost small" id="aboutDesktopShortcut" type="button">Ярлык на Рабочий стол</button>
           <button class="btn ghost small" id="aboutStartShortcut" type="button">Ярлык в меню «Пуск»</button>
+          <button class="btn ghost small" id="aboutBackup" type="button" title="Скачать всю базу данных (data/) в ZIP-архиве">Резервная копия (ZIP)</button>
+          <button class="btn ghost small danger" id="aboutShutdown" type="button" title="Выключить фоновые службы и остановить сервер">Выключить Hub</button>
           <button class="btn ghost small" id="aboutIntro" type="button">Показать обучение снова</button>
         </div>
       </section>
@@ -241,6 +243,39 @@
       $("#aboutOpen").addEventListener("click", openFolder);
       $("#aboutReadme").addEventListener("click", openReadme);
       $("#aboutIntro").addEventListener("click", replayIntro);
+
+      const backupBtn = $("#aboutBackup");
+      if (backupBtn) {
+        backupBtn.addEventListener("click", () => {
+          window.location.href = "/api/system/backup";
+          Hub.toast("Скачиваю резервную копию базы данных…");
+        });
+      }
+
+      const shutBtn = $("#aboutShutdown");
+      if (shutBtn) {
+        shutBtn.addEventListener("click", async () => {
+          const confirmed = await Hub.confirm({
+            title: "Выключить Hub?",
+            text: "Сервер и фоновая запись буфера обмена будут остановлены. Чтобы включить снова, запустите ярлык или start.bat.",
+            confirmText: "Выключить",
+            danger: true,
+          });
+          if (!confirmed) return;
+          try {
+            await Hub.api("/api/system/shutdown");
+            document.body.innerHTML = `
+              <div style="display:flex;height:100vh;align-items:center;justify-content:center;text-align:center;background:#11141c;color:#fff;font-family:sans-serif;padding:20px;">
+                <div>
+                  <h1 style="font-size:28px;margin-bottom:12px;">Hub выключен</h1>
+                  <p style="color:#8b9bb4;font-size:16px;">Сервер остановлен. Теперь можно спокойно закрыть эту вкладку.</p>
+                </div>
+              </div>`;
+          } catch {
+            Hub.toast("Не удалось остановить сервер");
+          }
+        });
+      }
 
       syncShortcuts();
 
