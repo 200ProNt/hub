@@ -145,7 +145,7 @@
     </div>
   `;
 
-  async function mount(container) {
+  function mount(container) {
     container.innerHTML = TEMPLATE;
     const $ = (sel) => container.querySelector(sel);
 

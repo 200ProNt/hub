@@ -644,6 +644,12 @@ function paintTray(state) {
   button.setAttribute("aria-pressed", String(running));
   const label = document.getElementById("trayToggleLabel");
   if (label) label.textContent = running ? "Трей включён" : "Трей выключен";
+
+  const hotkeyPill = document.querySelector(".hotkey-pill");
+  if (hotkeyPill && state && state.hotkeys && state.hotkeys.length) {
+    const keys = state.hotkeys[0].split("+");
+    hotkeyPill.innerHTML = keys.map((k) => `<kbd>${Hub.escapeHtml(k)}</kbd>`).join(" + ");
+  }
 }
 
 async function initTray() {
@@ -728,7 +734,18 @@ function mountTool(tool) {
     return;
   }
 
-  Hub.cleanup = module.mount(root) || null;
+  const res = module.mount(root);
+  if (typeof res === "function") {
+    Hub.cleanup = res;
+  } else if (res && typeof res.then === "function") {
+    res.then((fn) => {
+      if (typeof fn === "function" && Hub.activeId === tool.id) {
+        Hub.cleanup = fn;
+      }
+    });
+  } else {
+    Hub.cleanup = null;
+  }
   if (Hub.pendingSearch && Hub.pendingSearch.tool === tool.id) Hub.pendingSearch = null;
 }
 
@@ -737,6 +754,15 @@ let routeVersion = 0;
 
 function route() {
   const requested = location.hash.replace(/^#\/?/, "").trim();
+  if (requested === "quick") {
+    if (window.HubPalette && typeof window.HubPalette.open === "function") {
+      window.HubPalette.open();
+    }
+    if (!Hub.activeId) {
+      location.hash = "#/home";
+    }
+    return;
+  }
   const tool = Hub.tools.find((item) => item.id === requested) || Hub.tools[0];
   if (!tool) return;
   const version = ++routeVersion;

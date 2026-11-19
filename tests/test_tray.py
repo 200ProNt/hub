@@ -16,7 +16,9 @@ class TestTray(unittest.TestCase):
         self.assertIn("supported", st)
         self.assertIn("running", st)
         self.assertIn("hotkeys", st)
-        self.assertIn("Win+Alt+H", st["hotkeys"])
+        self.assertIsInstance(st["hotkeys"], list)
+        self.assertGreater(len(st["hotkeys"]), 0)
+        self.assertIn("Ctrl+Alt+H", st["hotkeys"])
 
     @patch("tools.tray.is_supported", return_value=False)
     def test_start_unsupported(self, _):

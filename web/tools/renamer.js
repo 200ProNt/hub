@@ -58,7 +58,7 @@
     </div>
   `;
 
-  async function mount(container) {
+  function mount(container) {
     container.innerHTML = TEMPLATE;
     const $ = (sel) => container.querySelector(sel);
 
@@ -67,12 +67,17 @@
     let activeMode = "replace";
 
     // Установка папки по умолчанию
-    try {
-      const info = await Hub.api("/api/info");
-      if (info && info.default_folder) {
-        $("#renamerFolder").value = info.default_folder;
-      }
-    } catch {}
+    if (Hub.defaultFolder) {
+      const folderInput = $("#renamerFolder");
+      if (folderInput) folderInput.value = Hub.defaultFolder;
+    } else {
+      Hub.api("/api/info").then((info) => {
+        if (info && info.default_folder) {
+          const folderInput = $("#renamerFolder");
+          if (folderInput && !folderInput.value) folderInput.value = info.default_folder;
+        }
+      }).catch(() => {});
+    }
 
     function renderRuleInputs() {
       const body = $("#renamerRuleBody");

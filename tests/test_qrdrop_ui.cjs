@@ -83,3 +83,17 @@ test('qrdrop mounts and registers in HubTools', async () => {
   assert.ok(root.innerHTML.includes('qrdrop-layout'), 'HTML should render qrdrop-layout');
   if (typeof cleanup === 'function') cleanup();
 });
+
+test('qrdrop cleanup returns sync function and stops unmounted toasts', () => {
+  const { context, root, calls } = setup();
+  root.isConnected = true;
+  const cleanup = context.window.HubTools.qrdrop.mount(root);
+  assert.equal(typeof cleanup, 'function', 'mount must return a synchronous cleanup function');
+  
+  root.isConnected = false;
+  cleanup();
+  root.innerHTML = '';
+
+  const toastsAfterUnmount = calls.filter(c => c.type === 'toast');
+  assert.equal(toastsAfterUnmount.length, 0, 'no toast error should be fired after unmount');
+});

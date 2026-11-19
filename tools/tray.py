@@ -6,6 +6,7 @@ import ctypes
 import os
 import sys
 import threading
+import time
 import webbrowser
 from ctypes import wintypes
 
@@ -37,9 +38,6 @@ MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
 MOD_WIN = 0x0008
 MOD_NOREPEAT = 0x4000
-
-HOTKEY_ID_WIN = 101
-HOTKEY_ID_CTRL = 102
 
 ID_MENU_OPEN = 1001
 ID_MENU_NOTES = 1002
@@ -104,7 +102,8 @@ _tray_state = {
     "nid": None,
     "port": 8770,
     "running": False,
-    "stop_event": None,
+    "active_hotkeys": [],
+    "registered_hotkey_ids": [],
 }
 
 
@@ -151,7 +150,7 @@ def _wnd_proc(hwnd, msg, wparam, lparam):
             return 0
 
     elif msg == WM_HOTKEY:
-        # Глобальный хоткей нажат (Win+Alt+H или Ctrl+Shift+H)
+        # Глобальный хоткей нажат (например Ctrl+Alt+H из любой программы)
         webbrowser.open(f"{base_url}/#quick")
         return 0
 
@@ -175,6 +174,15 @@ def _run_message_loop(port: int):
         kernel32 = ctypes.windll.kernel32
         shell32 = ctypes.windll.shell32
 
+        # Переключаем рабочий стол потока на Default (где запущен explorer.exe и виден трей Windows)
+        try:
+            DESKTOP_ALL = 0x01FF
+            hdesk = user32.OpenDesktopW("Default", 0, False, DESKTOP_ALL)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+        except Exception:
+            pass
+
         user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
         user32.DefWindowProcW.restype = LRESULT
         user32.PostQuitMessage.argtypes = [ctypes.c_int]
@@ -184,8 +192,24 @@ def _run_message_loop(port: int):
         user32.CreatePopupMenu.restype = wintypes.HMENU
         user32.DestroyMenu.argtypes = [wintypes.HMENU]
         user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+        user32.RegisterHotKey.restype = wintypes.BOOL
         user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
-        shell32.Shell_NotifyIconW.argtypes = [wintypes.DWORD, ctypes.POINTER(NOTIFYICONDATAW)]
+        user32.CreateWindowExW.argtypes = [
+            wintypes.DWORD,
+            wintypes.LPCWSTR,
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            wintypes.HWND,
+            wintypes.HMENU,
+            wintypes.HINSTANCE,
+            wintypes.LPVOID,
+        ]
+        user32.CreateWindowExW.restype = wintypes.HWND
+        shell32.Shell_NotifyIconW.argtypes = [wintypes.DWORD, ctypes.c_void_p]
         shell32.Shell_NotifyIconW.restype = wintypes.BOOL
 
         hinst = kernel32.GetModuleHandleW(None)
@@ -201,17 +225,15 @@ def _run_message_loop(port: int):
         user32.RegisterClassExW(ctypes.byref(wcls))
 
         hwnd = user32.CreateWindowExW(
-            0, class_name, "HubTrayWindow", 0, 0, 0, 0, 0, -3, 0, hinst, 0  # HWND_MESSAGE = -3
+            0, class_name, "HubTrayWindow", 0, 0, 0, 0, 0, None, None, hinst, None
         )
         if not hwnd:
-            # Fallback к обычному невидимому окну, если HWND_MESSAGE не доступен
             hwnd = user32.CreateWindowExW(
-                0, class_name, "HubTrayWindow", 0, 0, 0, 0, 0, 0, 0, hinst, 0
+                0, class_name, "HubTrayWindow", 0, 0, 0, 0, 0, -3, None, hinst, None
             )
 
         _tray_state["hwnd"] = hwnd
 
-        # Иконка трея
         hicon = user32.LoadIconW(0, 32512)  # IDI_APPLICATION = 32512
 
         nid = NOTIFYICONDATAW()
@@ -221,17 +243,32 @@ def _run_message_loop(port: int):
         nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
         nid.uCallbackMessage = WM_TRAY
         nid.hIcon = hicon
-        nid.szTip = "Hub v1.3.2 — швейцарский нож Windows"
+        nid.szTip = "Hub — швейцарский нож Windows"
 
-        shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(nid))
-        _tray_state["nid"] = nid
+        for _ in range(5):
+            if shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(nid)):
+                _tray_state["nid"] = nid
+                break
+            time.sleep(0.25)
+
         _tray_state["running"] = True
 
-        # Регистрация глобальных хоткеев:
-        # 1) Win + Alt + H
-        user32.RegisterHotKey(hwnd, HOTKEY_ID_WIN, MOD_WIN | MOD_ALT | MOD_NOREPEAT, 0x48)  # 'H' = 0x48
-        # 2) Запасной: Ctrl + Shift + H
-        user32.RegisterHotKey(hwnd, HOTKEY_ID_CTRL, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, 0x48)
+        # Регистрация глобальных хоткеев (проверяем свободные комбинации)
+        candidates = [
+            ("Ctrl+Alt+H", 101, MOD_CONTROL | MOD_ALT, 0x48),
+            ("Alt+Shift+H", 102, MOD_ALT | MOD_SHIFT, 0x48),
+            ("Ctrl+Shift+H", 103, MOD_CONTROL | MOD_SHIFT, 0x48),
+            ("Win+Alt+H", 104, MOD_WIN | MOD_ALT, 0x48),
+        ]
+        active_hotkeys = []
+        reg_ids = []
+        for name, hk_id, mod, vk in candidates:
+            if user32.RegisterHotKey(hwnd, hk_id, mod | MOD_NOREPEAT, vk):
+                active_hotkeys.append(name)
+                reg_ids.append(hk_id)
+
+        _tray_state["active_hotkeys"] = active_hotkeys
+        _tray_state["registered_hotkey_ids"] = reg_ids
 
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) > 0:
@@ -265,13 +302,14 @@ def stop_tray() -> bool:
 
     hwnd = _tray_state.get("hwnd")
     nid = _tray_state.get("nid")
+    reg_ids = _tray_state.get("registered_hotkey_ids", [])
 
     try:
         if nid:
             ctypes.windll.shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(nid))
         if hwnd:
-            ctypes.windll.user32.UnregisterHotKey(hwnd, HOTKEY_ID_WIN)
-            ctypes.windll.user32.UnregisterHotKey(hwnd, HOTKEY_ID_CTRL)
+            for hk_id in reg_ids:
+                ctypes.windll.user32.UnregisterHotKey(hwnd, hk_id)
             ctypes.windll.user32.DestroyWindow(hwnd)
     except Exception:
         pass
@@ -279,14 +317,17 @@ def stop_tray() -> bool:
     _tray_state["running"] = False
     _tray_state["hwnd"] = None
     _tray_state["nid"] = None
+    _tray_state["active_hotkeys"] = []
+    _tray_state["registered_hotkey_ids"] = []
     return True
 
 
 def status() -> dict:
     """Возвращает статус трея и хоткеев."""
+    active = _tray_state.get("active_hotkeys", [])
     return {
         "supported": is_supported(),
         "running": bool(_tray_state.get("running")),
-        "hotkeys": ["Win+Alt+H", "Ctrl+Shift+H"],
+        "hotkeys": active if active else ["Ctrl+Alt+H"],
         "port": _tray_state.get("port", 8770),
     }
