@@ -17,6 +17,8 @@ import time
 import uuid
 from pathlib import Path
 
+from tools import paths
+
 from tools import fileguard
 
 CHUNK = 1024 * 1024
@@ -65,7 +67,7 @@ def _trash_dir() -> Path:
     base = (
         Path(override)
         if override
-        else Path(__file__).resolve().parent.parent / "data" / "trash"
+        else paths.DATA_DIR / "trash"
     )
     base.mkdir(parents=True, exist_ok=True)
     return base

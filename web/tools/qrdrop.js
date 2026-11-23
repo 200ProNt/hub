@@ -1,91 +1,6 @@
 /* Hub — Обмен с телефоном (QR-Drop): передача текста, ссылок и файлов по Wi-Fi */
 
 (function () {
-  /* Микро-генератор QR-кода на чистом JS без сторонних библиотек (QR Version 2/3/4 ECC-L) */
-  function renderQrSvg(text, size = 180) {
-    // Простое и надёжное построение QR-кода через публичный протокол или локальный генератор матрицы
-    // Используем кодирование байтов и маску
-    return generateQrSvgDirect(text, size);
-  }
-
-  // Автономный генератор матриц QR-кода
-  function generateQrSvgDirect(data, size) {
-    // Таблица Рида-Соломона и генератор для коротких URL (до 64 байт)
-    const len = data.length;
-    // Определяем версию: Version 3 (29x29) вмещает до 53 байт, Version 4 (33x33) до 78 байт
-    const v = len <= 50 ? 3 : 4;
-    const n = 17 + 4 * v;
-    const grid = Array.from({ length: n }, () => Array(n).fill(0));
-    const isFunction = Array.from({ length: n }, () => Array(n).fill(false));
-
-    function setFinder(r, c) {
-      for (let y = -1; y <= 7; y++) {
-        for (let x = -1; x <= 7; x++) {
-          const gy = r + y, gx = c + x;
-          if (gy < 0 || gy >= n || gx < 0 || gx >= n) continue;
-          isFunction[gy][gx] = true;
-          if (y >= 0 && y <= 6 && x >= 0 && x <= 6) {
-            grid[gy][gx] = (y === 0 || y === 6 || x === 0 || x === 6 || (y >= 2 && y <= 4 && x >= 2 && x <= 4)) ? 1 : 0;
-          } else {
-            grid[gy][gx] = 0;
-          }
-        }
-      }
-    }
-
-    setFinder(0, 0);
-    setFinder(0, n - 7);
-    setFinder(n - 7, 0);
-
-    // Alignment pattern для v >= 2
-    if (v >= 2) {
-      const pos = n - 7;
-      for (let y = -2; y <= 2; y++) {
-        for (let x = -2; x <= 2; x++) {
-          const gy = pos + y, gx = pos + x;
-          isFunction[gy][gx] = true;
-          grid[gy][gx] = (Math.abs(y) === 2 || Math.abs(x) === 2 || (x === 0 && y === 0)) ? 1 : 0;
-        }
-      }
-    }
-
-    // Timing patterns
-    for (let i = 8; i < n - 8; i++) {
-      isFunction[6][i] = true; grid[6][i] = i % 2 === 0 ? 1 : 0;
-      isFunction[i][6] = true; grid[i][6] = i % 2 === 0 ? 1 : 0;
-    }
-
-    // Заполняем псевдо-биты данных с хэшем строки для визуализации структуры
-    let bitIdx = 0;
-    const bytes = Array.from(new TextEncoder().encode(data));
-    // Дополняем байты хэшем
-    while (bytes.length < 50) bytes.push((bytes[bytes.length - 1] * 31 + 17) & 0xff);
-
-    for (let r = 0; r < n; r++) {
-      for (let c = 0; c < n; c++) {
-        if (!isFunction[r][c]) {
-          const byteVal = bytes[bitIdx % bytes.length];
-          const bit = (byteVal >> (bitIdx % 8)) & 1;
-          // Маска (r + c) % 2 == 0
-          grid[r][c] = (bit ^ ((r + c) % 2 === 0 ? 1 : 0));
-          bitIdx++;
-        }
-      }
-    }
-
-    let rects = "";
-    const moduleSize = size / n;
-    for (let y = 0; y < n; y++) {
-      for (let x = 0; x < n; x++) {
-        if (grid[y][x]) {
-          rects += `<rect x="${(x * moduleSize).toFixed(2)}" y="${(y * moduleSize).toFixed(2)}" width="${(moduleSize + 0.1).toFixed(2)}" height="${(moduleSize + 0.1).toFixed(2)}" fill="currentColor"/>`;
-        }
-      }
-    }
-
-    return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" style="display:block; border-radius: 8px;">${rects}</svg>`;
-  }
-
   const TEMPLATE = `
     <div class="qrdrop-layout">
       <!-- Левая колонка: QR-код подключения -->
@@ -94,7 +9,7 @@
         <p class="section-hint">Наведи камеру телефона на QR-код или открой адрес в мобильном браузере</p>
 
         <div class="qrdrop-qr-wrapper">
-          <div class="qrdrop-qr-box" id="dropQrBox"></div>
+          <div class="qrdrop-qr-box" id="dropQrBox"><img src="/api/drop/qr.svg" width="190" height="190" alt="QR-код для открытия Hub на телефоне"></div>
           <div class="qrdrop-url-box">
             <span class="qrdrop-badge">Wi-Fi / LAN</span>
             <code class="qrdrop-url-code" id="dropUrlCode">Загрузка адреса…</code>
@@ -166,6 +81,8 @@
   function mount(container) {
     let unmounted = false;
     container.innerHTML = TEMPLATE;
+    const qrImage = container.querySelector("#dropQrBox img");
+    qrImage?.addEventListener("error", () => qrImage.parentElement.classList.add("hidden"));
     const $ = (sel) => container.querySelector(sel);
 
     let dropInfo = null;
@@ -194,10 +111,6 @@
       if (openWebBtn) openWebBtn.href = dropInfo.url || "#";
 
       // Отрисовка QR
-      const qrBox = $("#dropQrBox");
-      if (qrBox) {
-        qrBox.innerHTML = renderQrSvg(dropInfo.url, 190);
-      }
 
       // Раздача файлов
       const sharedList = $("#dropSharedList");

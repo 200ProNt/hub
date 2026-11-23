@@ -65,7 +65,9 @@
 
     input.addEventListener("input", () => schedule(input.value));
     input.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowDown") {
+      if (event.key === "Tab") {
+        event.preventDefault();
+      } else if (event.key === "ArrowDown") {
         event.preventDefault();
         move(1);
       } else if (event.key === "ArrowUp") {
@@ -227,6 +229,8 @@
   function open() {
     if (!overlay) build();
     if (opened) return;
+    if (document.querySelector("#settingsModal")?.classList.contains("hidden") === false) Hub.closeSettings();
+    if (document.querySelector(".shell")?.inert) return;
     opened = true;
     previousFocus = document.activeElement;
     overlay.classList.remove("hidden");
@@ -258,7 +262,7 @@
 
   function onKeydown(event) {
     const key = String(event.key || "").toLowerCase();
-    if ((event.ctrlKey || event.metaKey) && key === "k") {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && (key === "k" || event.code === "KeyK")) {
       event.preventDefault();
       toggle();
       return;

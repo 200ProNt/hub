@@ -223,11 +223,16 @@ Hub.confirm = async function ({ title, text, confirmText = "Подтвердит
 
 /* ---------- Тема ---------- */
 
+const preferences = typeof HubPreferences !== "undefined" ? HubPreferences : {
+  get: key => localStorage.getItem(key),
+  set: (key, value) => localStorage.setItem(key, value),
+};
+
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   document.getElementById("themeLabel").textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
   try {
-    localStorage.setItem("hub-theme", theme);
+    preferences.set("hub-theme", theme);
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -236,11 +241,11 @@ function applyTheme(theme) {
 function initTheme() {
   let saved = null;
   try {
-    saved = localStorage.getItem("hub-theme");
+    saved = preferences.get("hub-theme");
   } catch {
     saved = null;
   }
-  applyTheme(saved || "light");
+  applyTheme(saved || (window.hubDesktopState && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 }
 
 /* ---------- Движение ---------- */
@@ -250,7 +255,7 @@ function applyMotion(enabled) {
   document.getElementById("motionLabel").textContent = enabled ? "Анимации включены" : "Анимации выключены";
   document.getElementById("motionBtn").setAttribute("aria-pressed", String(enabled));
   try {
-    localStorage.setItem("hub-motion", enabled ? "on" : "off");
+    preferences.set("hub-motion", enabled ? "on" : "off");
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -259,7 +264,7 @@ function applyMotion(enabled) {
 function initMotion() {
   let saved = null;
   try {
-    saved = localStorage.getItem("hub-motion");
+    saved = preferences.get("hub-motion");
   } catch {
     saved = null;
   }
@@ -339,8 +344,7 @@ function applyAccent(name) {
     }
   }
   try {
-    if (name) localStorage.setItem("hub-accent", name);
-    else localStorage.removeItem("hub-accent");
+    preferences.set("hub-accent", name);
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -357,7 +361,7 @@ function applyAccent(name) {
 function initAccent() {
   let saved = null;
   try {
-    saved = localStorage.getItem("hub-accent");
+    saved = preferences.get("hub-accent");
   } catch {
     saved = null;
   }
@@ -384,7 +388,7 @@ function applyGlass(enabled) {
   const btn = document.getElementById("glassBtn");
   if (btn && btn.setAttribute) btn.setAttribute("aria-pressed", String(enabled));
   try {
-    localStorage.setItem("hub-glass", enabled ? "on" : "off");
+    preferences.set("hub-glass", enabled ? "on" : "off");
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -393,7 +397,7 @@ function applyGlass(enabled) {
 function initGlass() {
   let saved = null;
   try {
-    saved = localStorage.getItem("hub-glass");
+    saved = preferences.get("hub-glass");
   } catch {
     saved = null;
   }
@@ -417,7 +421,7 @@ function applySound(enabled) {
   const btn = document.getElementById("soundBtn");
   if (btn && btn.setAttribute) btn.setAttribute("aria-pressed", String(enabled));
   try {
-    localStorage.setItem("hub-sound", enabled ? "on" : "off");
+    preferences.set("hub-sound", enabled ? "on" : "off");
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -426,7 +430,7 @@ function applySound(enabled) {
 function initSound() {
   let saved = null;
   try {
-    saved = localStorage.getItem("hub-sound");
+    saved = preferences.get("hub-sound");
   } catch {
     saved = null;
   }
@@ -446,9 +450,12 @@ let previousSettingsFocus = null;
 
 Hub.openSettings = function () {
   const modal = document.getElementById("settingsModal");
-  if (!modal) return;
+  if (!modal || !modal.classList.contains("hidden")) return;
+  window.HubPalette?.close();
   previousSettingsFocus = document.activeElement;
   modal.classList.remove("hidden");
+  const shell = document.querySelector(".shell");
+  if (shell) shell.inert = true;
   Hub.playSound("pop");
   const firstBtn = modal.querySelector("button");
   if (firstBtn && firstBtn.focus) firstBtn.focus();
@@ -458,6 +465,8 @@ Hub.closeSettings = function () {
   const modal = document.getElementById("settingsModal");
   if (!modal || modal.classList.contains("hidden")) return;
   modal.classList.add("hidden");
+  const shell = document.querySelector(".shell");
+  if (shell) shell.inert = false;
   if (previousSettingsFocus && previousSettingsFocus.focus) {
     try {
       previousSettingsFocus.focus();
@@ -501,8 +510,8 @@ function initSettings() {
   if (desktopBtn && desktopBtn.addEventListener) {
     desktopBtn.addEventListener("click", async () => {
       try {
-        const res = await Hub.api("/api/shortcuts/desktop");
-        Hub.toast(res.message || "Ярлык на Рабочем столе создан!");
+        await Hub.api("/api/shortcuts/create", { target: "desktop" });
+        Hub.toast("Ярлык на рабочем столе создан");
       } catch (err) {
         Hub.toast(err.message);
       }
@@ -513,8 +522,8 @@ function initSettings() {
   if (startBtn && startBtn.addEventListener) {
     startBtn.addEventListener("click", async () => {
       try {
-        const res = await Hub.api("/api/shortcuts/startmenu");
-        Hub.toast(res.message || "Ярлык в меню «Пуск» создан!");
+        await Hub.api("/api/shortcuts/create", { target: "start_menu" });
+        Hub.toast("Ярлык в меню «Пуск» создан");
       } catch (err) {
         Hub.toast(err.message);
       }
@@ -523,22 +532,52 @@ function initSettings() {
 
   const backupBtn = document.getElementById("settingsBackupBtn");
   if (backupBtn && backupBtn.addEventListener) {
-    backupBtn.addEventListener("click", async () => {
+    backupBtn.addEventListener("click", () => {
+      window.location.href = "/api/system/backup";
+    });
+  }
+
+  if (window.hubDesktopState) {
+    document.getElementById("settingsTransfer").classList.remove("hidden");
+    document.getElementById("settingsTransferBtn").addEventListener("click", async () => {
       try {
-        Hub.setBusy(true, "Создаю резервную копию…");
-        const res = await Hub.api("/api/system/backup", {});
-        Hub.toast(res.message || "Резервная копия создана!");
-      } catch (err) {
-        Hub.toast(err.message);
-      } finally {
-        Hub.setBusy(false);
+        await Hub.api("/api/desktop/open-transfer", {});
+      } catch (error) {
+        Hub.toast(error.message);
+      }
+    });
+    const filePicker = document.getElementById("settingsImportFile");
+    document.getElementById("settingsImportBtn").addEventListener("click", () => filePicker.click());
+    filePicker.addEventListener("change", async () => {
+      const file = filePicker.files[0];
+      filePicker.value = "";
+      if (!file) return;
+      try {
+        if (file.size > 16384) throw new Error("Файл настроек слишком большой");
+        const values = JSON.parse(await file.text());
+        if (!values || !Object.keys(values).some(key => key.startsWith("hub-"))) {
+          throw new Error("В файле нет настроек Hub");
+        }
+        delete values.tray;
+        await Hub.api("/api/desktop/preferences", values);
+        location.reload();
+      } catch (error) {
+        Hub.toast(error.message);
       }
     });
   }
 
   if (typeof window.addEventListener === "function") {
     window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "," || e.key === "б" || e.key === "Б")) {
+      if (e.key === "Tab" && modal && !modal.classList.contains("hidden")) {
+        const buttons = [...modal.querySelectorAll("button:not([disabled])")].filter(button => button.getClientRects().length);
+        const first = buttons[0];
+        const last = buttons.at(-1);
+        if (e.shiftKey && document.activeElement === first || !e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.code === "Comma" || e.key === "," || e.key === "б" || e.key === "Б")) {
         e.preventDefault();
         const m = document.getElementById("settingsModal");
         if (m && !m.classList.contains("hidden")) Hub.closeSettings();
@@ -646,7 +685,9 @@ function paintTray(state) {
   if (label) label.textContent = running ? "Трей включён" : "Трей выключен";
 
   const hotkeyPill = document.querySelector(".hotkey-pill");
-  if (hotkeyPill && state && state.hotkeys && state.hotkeys.length) {
+  if (hotkeyPill && state && state.hotkeys && !state.hotkeys.length) {
+    hotkeyPill.textContent = running ? "Горячая клавиша занята" : "Трей выключен";
+  } else if (hotkeyPill && state && state.hotkeys && state.hotkeys.length) {
     const keys = state.hotkeys[0].split("+");
     hotkeyPill.innerHTML = keys.map((k) => `<kbd>${Hub.escapeHtml(k)}</kbd>`).join(" + ");
   }
@@ -691,7 +732,7 @@ async function initTray() {
 function navMarkup(tool) {
   const active = tool.id === Hub.activeId;
   return `
-    <a class="nav-item ${active ? "is-active" : ""}" href="#/${tool.id}" data-id="${tool.id}" title="${Hub.escapeHtml(tool.hint || "")}">
+    <a class="nav-item ${active ? "is-active" : ""}" href="#/${tool.id}" data-id="${tool.id}" ${active ? 'aria-current="page"' : ""} aria-label="${Hub.escapeHtml(tool.name)}" title="${Hub.escapeHtml(tool.name)}">
       <span class="nav-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           ${TOOL_ICONS[tool.icon] || TOOL_ICONS.dots}
@@ -702,7 +743,11 @@ function navMarkup(tool) {
 }
 
 function renderNav() {
-  document.getElementById("toolNav").innerHTML = Hub.tools.map(navMarkup).join("");
+  const nav = document.getElementById("toolNav");
+  const focused = document.activeElement;
+  const restore = focused && nav.contains?.(focused) && focused.dataset.id;
+  nav.innerHTML = Hub.tools.map(navMarkup).join("");
+  if (restore) [...nav.querySelectorAll("a")].find(link => link.dataset.id === restore)?.focus();
 }
 
 function mountTool(tool) {
@@ -806,6 +851,11 @@ async function init() {
   initSound();
   initMotion();
   initSettings();
+  document.getElementById("openSearchBtn")?.addEventListener("click", () => window.HubPalette?.open());
+  document.querySelector?.(".skip-link")?.addEventListener("click", event => {
+    event.preventDefault();
+    document.getElementById("toolTitle").focus();
+  });
 
   const themeBtn = document.getElementById("themeBtn");
   if (themeBtn && themeBtn.addEventListener) {

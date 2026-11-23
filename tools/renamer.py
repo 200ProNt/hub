@@ -11,9 +11,11 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from tools import paths
+
 from tools import fileguard
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = paths.DATA_DIR
 HISTORY_FILE = DATA_DIR / "renamer_history.json"
 
 CYRILLIC_TO_LATIN = {

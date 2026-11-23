@@ -10,6 +10,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from tools import paths
+
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "Hub"
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +38,8 @@ def _pythonw(executable: str | None = None) -> str:
 
 
 def command(script: str | None = None, executable: str | None = None) -> str:
+    if paths.DESKTOP_EXE is not None and script is None and executable is None:
+        return f'"{paths.DESKTOP_EXE}" --background'
     target = Path(script) if script else ROOT / "server.py"
     return f'"{_pythonw(executable)}" "{target}" --no-browser'
 

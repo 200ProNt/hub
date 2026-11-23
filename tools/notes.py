@@ -15,6 +15,8 @@ import time
 import uuid
 from pathlib import Path
 
+from tools import paths
+
 MAX_TITLE = 120
 MAX_TEXT = 40_000
 MAX_NOTES = 2_000
@@ -28,7 +30,7 @@ def path() -> Path:
     override = os.environ.get("HUB_NOTES_FILE")
     if override:
         return Path(override)
-    return Path(__file__).resolve().parent.parent / "data" / "notes.json"
+    return paths.DATA_DIR / "notes.json"
 
 
 def extract_tags(text: str) -> list[str]:

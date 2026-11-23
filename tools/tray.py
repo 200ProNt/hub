@@ -11,6 +11,7 @@ import webbrowser
 from ctypes import wintypes
 
 WM_DESTROY = 0x0002
+WM_CLOSE = 0x0010
 WM_COMMAND = 0x0111
 WM_HOTKEY = 0x0312
 WM_APP = 0x8000
@@ -114,11 +115,10 @@ def is_supported() -> bool:
 
 def _wnd_proc(hwnd, msg, wparam, lparam):
     port = _tray_state.get("port", 8770)
-    base_url = f"http://127.0.0.1:{port}"
 
     if msg == WM_TRAY:
         if lparam in (WM_LBUTTONUP, WM_LBUTTONDBLCLK):
-            webbrowser.open(f"{base_url}/")
+            _open(port)
             return 0
         if lparam == WM_RBUTTONUP:
             user32 = ctypes.windll.user32
@@ -137,21 +137,27 @@ def _wnd_proc(hwnd, msg, wparam, lparam):
             user32.DestroyMenu(hmenu)
 
             if cmd == ID_MENU_OPEN:
-                webbrowser.open(f"{base_url}/")
+                _open(port)
             elif cmd == ID_MENU_NOTES:
-                webbrowser.open(f"{base_url}/#notes")
+                _open(port, "notes")
             elif cmd == ID_MENU_MONITOR:
-                webbrowser.open(f"{base_url}/#monitor")
+                _open(port, "monitor")
             elif cmd == ID_MENU_DROP:
-                webbrowser.open(f"{base_url}/#qrdrop")
+                _open(port, "qrdrop")
             elif cmd == ID_MENU_EXIT:
-                stop_tray()
-                os._exit(0)
+                if close_window:
+                    threading.Thread(target=close_window, daemon=True).start()
+                else:
+                    os._exit(0)
             return 0
 
     elif msg == WM_HOTKEY:
         # Глобальный хоткей нажат (например Ctrl+Alt+H из любой программы)
-        webbrowser.open(f"{base_url}/#quick")
+        _open(port, "quick")
+        return 0
+
+    elif msg == WM_CLOSE:
+        ctypes.windll.user32.DestroyWindow(hwnd)
         return 0
 
     elif msg == WM_DESTROY:
@@ -162,6 +168,17 @@ def _wnd_proc(hwnd, msg, wparam, lparam):
 
 
 _wnd_proc_cb = None
+open_window = None
+close_window = None
+icon_path = None
+_ready = threading.Event()
+
+
+def _open(port, route=""):
+    if open_window:
+        open_window(route)
+    else:
+        webbrowser.open(f"http://127.0.0.1:{port}/" + (f"#{route}" if route else ""))
 
 
 def _run_message_loop(port: int):
@@ -174,15 +191,6 @@ def _run_message_loop(port: int):
         kernel32 = ctypes.windll.kernel32
         shell32 = ctypes.windll.shell32
 
-        # Переключаем рабочий стол потока на Default (где запущен explorer.exe и виден трей Windows)
-        try:
-            DESKTOP_ALL = 0x01FF
-            hdesk = user32.OpenDesktopW("Default", 0, False, DESKTOP_ALL)
-            if hdesk:
-                user32.SetThreadDesktop(hdesk)
-        except Exception:
-            pass
-
         user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
         user32.DefWindowProcW.restype = LRESULT
         user32.PostQuitMessage.argtypes = [ctypes.c_int]
@@ -190,6 +198,10 @@ def _run_message_loop(port: int):
         user32.SetForegroundWindow.argtypes = [wintypes.HWND]
         user32.GetCursorPos.argtypes = [ctypes.POINTER(POINT)]
         user32.CreatePopupMenu.restype = wintypes.HMENU
+        user32.AppendMenuW.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.WPARAM, wintypes.LPCWSTR]
+        user32.TrackPopupMenu.argtypes = [wintypes.HMENU, wintypes.UINT, ctypes.c_int, ctypes.c_int,
+                                         ctypes.c_int, wintypes.HWND, wintypes.LPVOID]
+        user32.TrackPopupMenu.restype = wintypes.UINT
         user32.DestroyMenu.argtypes = [wintypes.HMENU]
         user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
         user32.RegisterHotKey.restype = wintypes.BOOL
@@ -212,6 +224,11 @@ def _run_message_loop(port: int):
         shell32.Shell_NotifyIconW.argtypes = [wintypes.DWORD, ctypes.c_void_p]
         shell32.Shell_NotifyIconW.restype = wintypes.BOOL
 
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        user32.LoadIconW.restype = wintypes.HICON
+        user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, wintypes.INT, wintypes.INT, wintypes.UINT]
+        user32.LoadImageW.restype = wintypes.HANDLE
+        user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, wintypes.HINSTANCE]
         hinst = kernel32.GetModuleHandleW(None)
         class_name = f"HubTrayClass_{port}"
 
@@ -232,9 +249,12 @@ def _run_message_loop(port: int):
                 0, class_name, "HubTrayWindow", 0, 0, 0, 0, 0, -3, None, hinst, None
             )
 
+        if not hwnd:
+            return
         _tray_state["hwnd"] = hwnd
 
-        hicon = user32.LoadIconW(0, 32512)  # IDI_APPLICATION = 32512
+        custom_icon = user32.LoadImageW(None, str(icon_path), 1, 16, 16, 0x0010) if icon_path else None
+        hicon = custom_icon or user32.LoadIconW(0, 32512)
 
         nid = NOTIFYICONDATAW()
         nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
@@ -270,29 +290,38 @@ def _run_message_loop(port: int):
         _tray_state["active_hotkeys"] = active_hotkeys
         _tray_state["registered_hotkey_ids"] = reg_ids
 
+        _ready.set()
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) > 0:
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
+        user32.UnregisterClassW(class_name, hinst)
+        if custom_icon:
+            user32.DestroyIcon.argtypes = [wintypes.HICON]
+            user32.DestroyIcon(custom_icon)
 
     except Exception:
         pass
     finally:
-        _tray_state["running"] = False
+        _tray_state.update(running=False, hwnd=None, nid=None, active_hotkeys=[], registered_hotkey_ids=[])
+        _ready.set()
 
 
 def start_tray(port: int = 8770) -> bool:
     """Запускает иконку в трее и глобальный хоткей в фоновом потоке."""
     if not is_supported():
         return False
-    if _tray_state.get("running"):
-        return True
+    thread = _tray_state.get("thread")
+    if thread and thread.is_alive():
+        return bool(_tray_state["nid"])
 
+    _ready.clear()
     _tray_state["port"] = port
     t = threading.Thread(target=_run_message_loop, args=(port,), daemon=True, name="HubTrayThread")
     _tray_state["thread"] = t
     t.start()
-    return True
+    _ready.wait(timeout=3)
+    return bool(_tray_state["nid"])
 
 
 def stop_tray() -> bool:
@@ -310,15 +339,15 @@ def stop_tray() -> bool:
         if hwnd:
             for hk_id in reg_ids:
                 ctypes.windll.user32.UnregisterHotKey(hwnd, hk_id)
-            ctypes.windll.user32.DestroyWindow(hwnd)
+            post = ctypes.windll.user32.PostMessageW
+            post.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+            post(hwnd, WM_CLOSE, 0, 0)
     except Exception:
         pass
 
-    _tray_state["running"] = False
-    _tray_state["hwnd"] = None
-    _tray_state["nid"] = None
-    _tray_state["active_hotkeys"] = []
-    _tray_state["registered_hotkey_ids"] = []
+    thread = _tray_state.get("thread")
+    if thread and thread is not threading.current_thread():
+        thread.join(timeout=3)
     return True
 
 
@@ -327,7 +356,7 @@ def status() -> dict:
     active = _tray_state.get("active_hotkeys", [])
     return {
         "supported": is_supported(),
-        "running": bool(_tray_state.get("running")),
-        "hotkeys": active if active else ["Ctrl+Alt+H"],
+        "running": bool(_tray_state.get("nid")),
+        "hotkeys": active if open_window else active or ["Ctrl+Alt+H"],
         "port": _tray_state.get("port", 8770),
     }

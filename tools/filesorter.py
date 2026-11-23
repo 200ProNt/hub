@@ -14,6 +14,8 @@ import time
 import uuid
 from pathlib import Path
 
+from tools import paths
+
 from tools import fileguard
 
 # --- Категории -------------------------------------------------------------
@@ -94,7 +96,7 @@ def _rules_file() -> Path:
     override = os.environ.get("HUB_SORTER_RULES_FILE")
     if override:
         return Path(override)
-    return Path(__file__).resolve().parent.parent / "data" / "sorter_rules.json"
+    return paths.DATA_DIR / "sorter_rules.json"
 
 
 def _rebuild_category_maps(rules: list[tuple[str, set[str]]]) -> None:
@@ -232,7 +234,7 @@ def _runs_dir() -> Path:
     directory = (
         Path(override)
         if override
-        else Path(__file__).resolve().parent.parent / "data" / "runs"
+        else paths.DATA_DIR / "runs"
     )
     directory.mkdir(parents=True, exist_ok=True)
     return directory

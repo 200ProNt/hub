@@ -16,6 +16,8 @@ import time
 import uuid
 from pathlib import Path
 
+from tools import paths
+
 from tools import fileguard
 
 ALLOWED_RUN_ID = set("0123456789abcdefghijklmnopqrstuvwxyz_")
@@ -27,7 +29,7 @@ class TrashError(RuntimeError):
 
 def base_dir() -> Path:
     override = os.environ.get("HUB_TRASH_DIR")
-    path = Path(override) if override else Path(__file__).resolve().parent.parent / "data" / "trash"
+    path = Path(override) if override else paths.DATA_DIR / "trash"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

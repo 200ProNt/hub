@@ -8,10 +8,11 @@ import socket
 from datetime import datetime
 from pathlib import Path
 
+from tools import paths
+
 from tools import fileguard
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = paths.DATA_DIR
 INCOMING_DIR = DATA_DIR / "incoming"
 SHARED_DIR = DATA_DIR / "shared"
 INCOMING_TEXTS_FILE = DATA_DIR / "incoming_texts.json"

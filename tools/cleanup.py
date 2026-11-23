@@ -15,6 +15,8 @@ import threading
 import time
 from pathlib import Path
 
+from tools import paths
+
 from tools import fileguard, trash
 
 DEFAULT_AGE_DAYS = 365
@@ -36,7 +38,7 @@ def _rules_file() -> Path:
     override = os.environ.get("HUB_CLEANUP_RULES_FILE")
     if override:
         return Path(override)
-    return Path(__file__).resolve().parent.parent / "data" / "cleanup_rules.json"
+    return paths.DATA_DIR / "cleanup_rules.json"
 
 
 def get_rules() -> dict:

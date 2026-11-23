@@ -7,13 +7,15 @@
 <title>Hub — полезное под рукой</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
+<script src="/desktop-state.js"></script>
+<script src="preferences.js"></script>
 <script>
   // Тема и анимации применяются до отрисовки, иначе тёмная тема начиналась бы с белой вспышки.
   try {
-    if (localStorage.getItem("hub-theme") === "dark") document.documentElement.dataset.theme = "dark";
-    if (localStorage.getItem("hub-motion") === "off") document.documentElement.dataset.motion = "off";
-    if (localStorage.getItem("hub-accent")) document.documentElement.dataset.accent = localStorage.getItem("hub-accent");
-    if (localStorage.getItem("hub-glass") === "on") document.documentElement.dataset.glass = "on";
+    if (HubPreferences.get("hub-theme") === "dark") document.documentElement.dataset.theme = "dark";
+    if (HubPreferences.get("hub-motion") === "off") document.documentElement.dataset.motion = "off";
+    if (HubPreferences.get("hub-accent")) document.documentElement.dataset.accent = HubPreferences.get("hub-accent");
+    if (HubPreferences.get("hub-glass") === "on") document.documentElement.dataset.glass = "on";
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -31,6 +33,7 @@
 </div>
 
 <div class="shell">
+  <a class="skip-link" href="#toolTitle">К содержимому</a>
 
   <aside class="sidebar">
     <div class="brand">
@@ -44,14 +47,13 @@
       </div>
       <div class="brand-text">
         <h1>Hub</h1>
-        <p>Полезное под рукой</p>
       </div>
     </div>
 
     <nav class="nav" id="toolNav" aria-label="Инструменты"></nav>
 
     <div class="sidebar-foot">
-      <button class="settings-entry-btn" id="openSettingsBtn" type="button" title="Настройки оформления, звука и системы (Ctrl+,)">
+      <button class="settings-entry-btn" id="openSettingsBtn" type="button" aria-label="Настройки" title="Настройки (Ctrl+,)">
         <span class="nav-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -61,13 +63,18 @@
         <span class="nav-name">Настройки</span>
         <span class="settings-hint">Ctrl+,</span>
       </button>
-      <p class="storage-note">Всё хранится только на этом компьютере · v1.3.2.1</p>
     </div>
   </aside>
 
   <main class="workspace">
+    <div class="workspace-bar">
+      <button class="quick-search" id="openSearchBtn" type="button" aria-label="Общий поиск" aria-keyshortcuts="Control+K">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 4.5 4.5"/></svg>
+        <span>Поиск по Hub</span><kbd>Ctrl K</kbd>
+      </button>
+    </div>
     <header class="workspace-head">
-      <h2 id="toolTitle">Загрузка…</h2>
+      <h2 id="toolTitle" tabindex="-1">Загрузка…</h2>
       <p id="toolHint"></p>
     </header>
     <div id="toolRoot" class="tool-root"></div>
@@ -87,7 +94,6 @@
           </svg>
           Настройки Hub
         </h2>
-        <p class="settings-head-sub">Оформление, стекло Fluent, микро-звуки и интеграция с Windows</p>
       </div>
       <button class="settings-close" id="closeSettingsBtn" type="button" aria-label="Закрыть настройки">✕</button>
     </div>
@@ -95,7 +101,7 @@
     <div class="settings-content">
       <!-- Секция 1: Внешний вид и Fluent -->
       <section class="settings-group">
-        <h3 class="settings-group-title">Внешний вид и стиль Fluent</h3>
+        <h3 class="settings-group-title">Внешний вид</h3>
         
         <div class="settings-item">
           <div class="settings-item-info">
@@ -122,7 +128,7 @@
             <span class="settings-item-hint">Цвет выделений, кнопок и активных элементов</span>
           </div>
           <div class="accent-bar" id="accentBar" aria-label="Выбор акцентного цвета" title="Выбор акцентного цвета">
-            <button class="accent-dot is-active" type="button" data-accent="" title="Фиолетовый (Cyber)" style="--dot-color: #5b5bd6;"></button>
+            <button class="accent-dot is-active" type="button" data-accent="" title="По умолчанию" style="--dot-color: #005fb8;"></button>
             <button class="accent-dot" type="button" data-accent="emerald" title="Изумрудный (Matrix)" style="--dot-color: #10b981;"></button>
             <button class="accent-dot" type="button" data-accent="ocean" title="Океанский синий (Windows)" style="--dot-color: #0284c7;"></button>
             <button class="accent-dot" type="button" data-accent="sunset" title="Закатный оранжевый" style="--dot-color: #ea580c;"></button>
@@ -247,6 +253,17 @@
             <span class="settings-item-hint">Создать полный ZIP-архив заметок, буфера и настроек</span>
           </div>
           <button class="btn ghost small" id="settingsBackupBtn" type="button">Создать ZIP-бэкап</button>
+        </div>
+        <div class="settings-item hidden" id="settingsTransfer">
+          <div class="settings-item-info">
+            <span class="settings-item-label">Настройки старой версии</span>
+            <span class="settings-item-hint">Перенос темы и оформления из браузера</span>
+          </div>
+          <div class="settings-item-actions">
+            <button class="btn ghost small" id="settingsTransferBtn" type="button">Открыть в браузере</button>
+            <button class="btn ghost small" id="settingsImportBtn" type="button">Из файла</button>
+            <input type="file" id="settingsImportFile" hidden accept=".json,application/json">
+          </div>
         </div>
       </section>
     </div>

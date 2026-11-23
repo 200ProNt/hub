@@ -10,6 +10,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+dist/
 
 # Системный мусор
 .DS_Store

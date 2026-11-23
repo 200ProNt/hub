@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tools import paths
+
 ROOT = Path(__file__).resolve().parent.parent
 START_BAT = ROOT / "start.bat"
 
@@ -76,15 +78,16 @@ def create(target: str = "desktop") -> dict:
     lnk.parent.mkdir(parents=True, exist_ok=True)
 
     escaped_lnk = str(lnk.resolve()).replace("'", "''")
-    escaped_target = str(START_BAT.resolve()).replace("'", "''")
-    escaped_work = str(ROOT.resolve()).replace("'", "''")
+    launch = paths.DESKTOP_EXE or START_BAT
+    escaped_target = str(launch.resolve()).replace("'", "''")
+    escaped_work = str(launch.parent.resolve()).replace("'", "''")
 
     ps_code = (
         f"$ws = New-Object -ComObject WScript.Shell; "
         f"$s = $ws.CreateShortcut('{escaped_lnk}'); "
         f"$s.TargetPath = '{escaped_target}'; "
         f"$s.WorkingDirectory = '{escaped_work}'; "
-        f"$s.Description = 'Hub — локальный сайт с полезными инструментами'; "
+        f"$s.Description = 'Hub — инструменты для Windows'; "
         f"$s.Save()"
     )
 
@@ -94,6 +97,7 @@ def create(target: str = "desktop") -> dict:
             capture_output=True,
             text=True,
             timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if supported() else 0,
         )
         if res.returncode != 0:
             raise ShortcutError(f"PowerShell error: {res.stderr.strip() or res.stdout.strip()}")

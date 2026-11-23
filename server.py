@@ -32,6 +32,8 @@ from tools import (
     images,
     monitor,
     notes,
+    paths,
+    preferences,
     qrdrop,
     renamer,
     search,
@@ -43,15 +45,24 @@ from tools.registry import TOOLS
 
 BASE_DIR = Path(__file__).resolve().parent
 WEB_DIR = BASE_DIR / "web"
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = paths.DATA_DIR
 
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.3.2.1"
+VERSION = "1.4.0"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.4.0",
+        "date": "2026-11-23",
+        "items": [
+            "Отдельное окно Hub для Windows 11, запуск из ярлыка и быстрый поиск из трея.",
+            "Компактная панель инструментов, светлая и тёмная темы, навигация с клавиатуры.",
+            "Перенос заметок, истории буфера, корзины и настроек из браузерной версии.",
+        ],
+    },
     {
         "version": "1.3.2.1",
         "date": "2026-11-19",
@@ -231,7 +242,7 @@ def about_info() -> dict:
         "author": "devrin",
         "license": "MIT",
         "license_text": license_text,
-        "folder": str(BASE_DIR),
+        "folder": str(paths.DESKTOP_EXE.parent if paths.DESKTOP_EXE else BASE_DIR),
         "readme": str(BASE_DIR / "README.md"),
         "tools": len(TOOLS),
         "python": platform.python_version(),
@@ -394,7 +405,7 @@ class HubHandler(BaseHTTPRequestHandler):
     server_version = f"Hub/{VERSION}"
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
-        if args and str(args[0]).startswith(("4", "5")):
+        if sys.stderr and args and str(args[0]).startswith(("4", "5")):
             sys.stderr.write(f"[hub] {fmt % args}\n")
 
     def _is_private_ip(self, hostname: str) -> bool:
@@ -445,6 +456,20 @@ class HubHandler(BaseHTTPRequestHandler):
         return True
 
     def _security_check(self) -> bool:
+        if getattr(self.server, "desktop", False):
+            local = self.client_address[0] == "127.0.0.1"
+            host = self.headers.get("Host", "").lower()
+            origin = self.headers.get("Origin")
+            local_hosts = {f"{name}:{self.server.server_port}" for name in ("127.0.0.1", "localhost")}
+            phone_routes = {
+                "GET": {"/drop", "/api/drop/info", "/api/drop/latest-text", "/api/drop/download"},
+                "POST": {"/api/drop/send-text", "/api/drop/upload"},
+            }
+            if (local and host not in local_hosts) or (
+                not local and urlparse(self.path).path not in phone_routes.get(self.command, ())
+            ) or (origin and origin != f"http://{host}"):
+                self._send_json({"error": "Запрос недоступен"}, 403)
+                return False
         if not self._is_allowed_host():
             self._send_json(
                 {"error": "Запрос заблокирован: недопустимый узел Host (защита от DNS Rebinding)"},
@@ -561,6 +586,16 @@ class HubHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path == "/desktop-state.js":
+                state = preferences.read() if getattr(self.server, "desktop", False) else None
+                data = f"window.hubDesktopState = {json.dumps(state)};".encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/javascript; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if path == "/api/info":
                 return self._send_json(
                     {
@@ -676,6 +711,20 @@ class HubHandler(BaseHTTPRequestHandler):
                 return self._send_json({"last_run": renamer.last_run()})
             if path == "/api/drop/info":
                 return self._send_json(qrdrop.get_info(self.server.server_port))
+            if path == "/api/drop/qr.svg":
+                try:
+                    from qrcode import make
+                    from qrcode.image.svg import SvgPathFillImage
+                except ImportError:
+                    return self._send_json({"error": "QR-код недоступен, используй адрес"}, 404)
+                svg = make(qrdrop.get_drop_url(self.server.server_port), image_factory=SvgPathFillImage).to_string()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Content-Length", str(len(svg)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(svg)
+                return
             if path == "/api/drop/latest-text":
                 texts = qrdrop.list_incoming_texts(1)
                 try:
@@ -783,6 +832,17 @@ class HubHandler(BaseHTTPRequestHandler):
         self._send_json(payload)
 
     def _dispatch_post(self, path: str, body: dict) -> dict:
+        desktop = getattr(self.server, "desktop", False)
+        if desktop and path == "/api/desktop/preferences":
+            settings = preferences.update(body)
+            if "hub-theme" in body:
+                self.server.apply_theme(settings.get("hub-theme") == "dark")
+            return settings
+
+        if desktop and path == "/api/desktop/open-transfer":
+            webbrowser.open(f"http://127.0.0.1:{self.server.server_port}/transfer.html")
+            return {"ok": True}
+
         if path == "/api/clipboard/copy":
             item = store().get(str(body.get("id", "")))
             if not item:
@@ -1072,9 +1132,15 @@ class HubHandler(BaseHTTPRequestHandler):
                 tray.start_tray(self.server.server_port)
             else:
                 tray.stop_tray()
+            if desktop:
+                preferences.update({"tray": "on" if enabled else "off"})
             return tray.status()
 
         if path == "/api/system/shutdown":
+            if desktop:
+                threading.Timer(0.3, self.server.close_window).start()
+                return {"ok": True}
+
             def _stop() -> None:
                 import time
                 time.sleep(0.3)
@@ -1117,6 +1183,15 @@ def find_port(start: int = START_PORT) -> int:
     raise SystemExit("Не нашёл свободный порт. Закрой лишние программы и попробуй снова.")
 
 
+def start_clipboard() -> clipboard.ClipboardWatcher:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    store_instance = clipboard.ClipboardStore(DATA_DIR / "clipboard.json")
+    watcher_instance = clipboard.ClipboardWatcher(store_instance)
+    _state.update(store=store_instance, watcher=watcher_instance)
+    watcher_instance.start()
+    return watcher_instance
+
+
 def main() -> None:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -1124,13 +1199,7 @@ def main() -> None:
         except (AttributeError, ValueError):
             pass
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    store_instance = clipboard.ClipboardStore(DATA_DIR / "clipboard.json")
-    watcher_instance = clipboard.ClipboardWatcher(store_instance)
-    _state["store"] = store_instance
-    _state["watcher"] = watcher_instance
-    watcher_instance.start()
+    watcher_instance = start_clipboard()
 
     open_browser = "--no-browser" not in sys.argv
     port = find_port()

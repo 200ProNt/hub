@@ -18,7 +18,7 @@
     {
       icon: "grid",
       title: "Привет, это Hub",
-      text: "Маленький локальный сайт с инструментами на каждый день. Покажу за четыре шага — это займёт полминуты.",
+      text: "Локальные инструменты на каждый день. Покажу за четыре шага — это займёт полминуты.",
     },
     {
       icon: "list",
@@ -38,7 +38,7 @@
     {
       icon: "theme",
       title: "Тема, анимации и приватность",
-      text: "Внизу слева — тёмная тема и переключатель анимаций, выбор запомнится. Все данные лежат в папке data/ рядом с программой и никуда не отправляются.",
+      text: "Открой настройки внизу слева, чтобы выбрать тему и настроить анимации. Данные хранятся в папке data/ на этом компьютере.",
     },
   ];
 
@@ -55,7 +55,7 @@
 
   function firstRun() {
     try {
-      return localStorage.getItem(ONBOARDED_KEY) !== "1";
+      return (typeof HubPreferences !== "undefined" ? HubPreferences.get(ONBOARDED_KEY) : localStorage.getItem(ONBOARDED_KEY)) !== "1";
     } catch {
       return true;
     }
@@ -63,7 +63,8 @@
 
   function rememberOnboarding() {
     try {
-      localStorage.setItem(ONBOARDED_KEY, "1");
+      if (typeof HubPreferences !== "undefined") HubPreferences.set(ONBOARDED_KEY, "1");
+      else localStorage.setItem(ONBOARDED_KEY, "1");
     } catch {
       /* localStorage может быть недоступен */
     }
@@ -87,6 +88,11 @@
   function ready() {
     if (appReady) return;
     appReady = true;
+    if (window.hubDesktopState) {
+      document.getElementById("splash")?.remove();
+      maybeOnboard();
+      return;
+    }
     const wait = motionOn()
       ? Math.max(0, SPLASH_MIN_MS - (Date.now() - startedAt))
       : 0;
