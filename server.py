@@ -50,10 +50,18 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.5.0",
+        "date": "2026-11-24",
+        "items": [
+            "Нативные экраны Hub на WPF для Windows 11.",
+            "Прозрачный акриловый материал окна, собственный логотип и контурные иконки.",
+        ],
+    },
     {
         "version": "1.4.0",
         "date": "2026-11-23",
@@ -1008,6 +1016,8 @@ class HubHandler(BaseHTTPRequestHandler):
                 pid = int(body.get("pid", 0))
             except (TypeError, ValueError):
                 raise ApiError("Не понял, какой процесс закрывать")
+            if "created" in body or "name" in body:
+                return monitor.terminate(pid, (str(body.get("name", "")), float(body.get("created", 0))))
             return monitor.terminate(pid)
 
         if path == "/api/notes/create":
@@ -1160,6 +1170,8 @@ class HubHandler(BaseHTTPRequestHandler):
         raise ApiError("Неизвестный запрос", 404)
 
     def _serve_static(self, path: str) -> None:
+        if getattr(self.server, "native_shell", False) and path not in ("/transfer.html", "/transfer.js"):
+            return self._send_json({"error": "Не найдено"}, 404)
         relative = "index.html" if path in ("", "/") else unquote(path).lstrip("/")
         try:
             target = (WEB_DIR / relative).resolve()

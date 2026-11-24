@@ -13,6 +13,7 @@ OPTIONS = {
     "hub-theme": {"light", "dark"},
     "hub-motion": {"on", "off"},
     "hub-glass": {"on", "off"},
+    "desktop-glass": {"on", "off"},
     "hub-sound": {"on", "off"},
     "hub-accent": {"", "emerald", "ocean", "sunset", "pink"},
     "hub-onboarded": {"1"},

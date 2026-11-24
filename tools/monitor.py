@@ -386,12 +386,14 @@ def snapshot() -> dict:
         time.sleep(0.05)
 
 
-def terminate(pid: int) -> dict:
+def terminate(pid: int, expected: tuple[str, float] | None = None) -> dict:
     """Закрыть процесс из последнего снимка."""
     with _state["lock"]:
         allowed = _state["allowed"].get(pid)
         if allowed is None:
             raise MonitorError("Этого процесса нет в последнем списке — обнови и попробуй снова")
+        if expected is not None and expected != allowed:
+            raise MonitorError("Процесс изменился; обнови список")
 
         libs = _libs()
         info = _process_info(libs, pid)

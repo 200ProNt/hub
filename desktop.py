@@ -3,7 +3,6 @@
 import argparse
 import ctypes
 import hashlib
-import json
 import os
 import socket
 import sys
@@ -14,13 +13,9 @@ from pathlib import Path
 from tools import paths, preferences
 
 
-def run(background, activate_event, kernel, profile):
-    import webview
+def run(background, activate_event, kernel):
     import server
-    from webview.platforms import winforms
-
-    if not winforms.is_chromium:
-        raise RuntimeError("Установи Microsoft Edge WebView2 Runtime и снова запусти Hub.")
+    from native.ui import run_window
 
     class DesktopServer(server.ThreadingHTTPServer):
         allow_reuse_address = False
@@ -42,81 +37,46 @@ def run(background, activate_event, kernel, profile):
 
     state = preferences.read()
     start_hidden = background and state.get("tray") != "off"
-    dark = state.get("hub-theme") == "dark"
     icon = paths.ROOT / "hub.ico"
-    webview.settings["ALLOW_DOWNLOADS"] = True
-    window = webview.create_window(
-        "Hub", f"http://127.0.0.1:{http.server_port}/", width=1120, height=760,
-        min_size=(520, 440), hidden=start_hidden, text_select=True, zoomable=True,
-        background_color="#202020" if dark else "#f5f6f8",
-    )
     exiting = threading.Event()
-    hwnd = None
+    listener = None
 
-    def apply_theme(dark_mode):
-        if hwnd is not None:
-            value = wintypes.BOOL(dark_mode)
-            set_attribute = ctypes.windll.dwmapi.DwmSetWindowAttribute
-            set_attribute.argtypes = [wintypes.HWND, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD]
-            set_attribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
+    def setup(ui):
+        nonlocal listener
 
-    def on_before_show():
-        nonlocal hwnd
-        hwnd = window.native.Handle.ToInt64()
-        apply_theme(dark)
+        def activate(route=""):
+            if not exiting.is_set():
+                ui.dispatch(lambda: ui.activate(route))
 
-    def activate(route=""):
-        if exiting.is_set():
-            return
-        window.show()
-        if hwnd is not None:
-            user32 = ctypes.windll.user32
-            user32.IsIconic.argtypes = [wintypes.HWND]
-            user32.SetForegroundWindow.argtypes = [wintypes.HWND]
-            if user32.IsIconic(hwnd):
-                window.restore()
-            user32.SetForegroundWindow(hwnd)
-        if route:
-            action = "window.HubPalette?.open()" if route == "quick" else (
-                "location.hash = " + json.dumps(f"#/{route}")
-            )
-            window.run_js(action)
+        http.close_window = lambda: ui.dispatch(ui.close)
+        http.apply_theme = lambda _: ui.dispatch(ui.apply_theme)
+        server.tray.open_window = activate
+        server.tray.close_window = http.close_window
+        server.tray.icon_path = icon if icon.is_file() else None
 
-    def exit_app():
-        exiting.set()
-        window.destroy()
-
-    def on_closing():
-        if not exiting.is_set() and server.tray.status()["running"]:
-            window.hide()
-            return False
-        exiting.set()
-        return True
-
-    def listen_for_launches():
-        if state.get("tray") != "off" and not server.tray.start_tray(http.server_port) and start_hidden:
-            activate()
-        while not exiting.is_set():
-            if kernel.WaitForSingleObject(activate_event, 250) == 0:
+        def listen_for_launches():
+            if state.get("tray") != "off" and not server.tray.start_tray(http.server_port) and start_hidden:
                 activate()
+            while not exiting.is_set():
+                if kernel.WaitForSingleObject(activate_event, 250) == 0:
+                    activate()
+
+        listener = threading.Thread(target=listen_for_launches, daemon=True)
+        listener.start()
 
     http.desktop = True
-    http.close_window = exit_app
-    http.apply_theme = apply_theme
+    http.native_shell = True
+    http.close_window = lambda: None
+    http.apply_theme = lambda _: None
     http.daemon_threads = True
-    server.tray.open_window = activate
-    server.tray.close_window = exit_app
-    server.tray.icon_path = icon if icon.is_file() else None
-    window.events.closing += on_closing
-    window.events.before_show += on_before_show
-
     watcher = server.start_clipboard()
     threading.Thread(target=http.serve_forever, daemon=True).start()
     try:
-        webview.start(listen_for_launches, gui="edgechromium", icon=str(icon) if icon.is_file() else None,
-                      private_mode=False, storage_path=str(profile / "WebView2"))
+        run_window(http.server_port, server.VERSION, server.default_folder(), start_hidden, setup)
     finally:
         exiting.set()
+        if listener is not None:
+            listener.join(timeout=4)
         server.tray.stop_tray()
         watcher.stop()
         watcher.join(timeout=2)
@@ -163,7 +123,7 @@ def main():
             if paths.DESKTOP_EXE and f'"{old_script}"'.casefold() in entry.casefold():
                 autostart.set_enabled(True)
         if not args.migrate_only:
-            run(args.background, event, kernel, profile)
+            run(args.background, event, kernel)
     finally:
         kernel.CloseHandle(event)
 
