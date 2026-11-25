@@ -70,7 +70,7 @@
             <Grid x:Name="Surface" Background="Transparent">
               <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                       BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource ControlRadius}" />
-              <Border x:Name="Highlight" Margin="{TemplateBinding BorderThickness}" Background="{DynamicResource Hover}"
+              <Border x:Name="Highlight" Margin="{TemplateBinding BorderThickness}" Background="{TemplateBinding Foreground}"
                       CornerRadius="{DynamicResource ControlRadius}" Opacity="0" />
               <ContentPresenter x:Name="Caption" Style="{StaticResource WrappedContent}"
                                 Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
@@ -78,10 +78,10 @@
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Highlight" Property="Opacity" Value=".7" />
+                <Setter TargetName="Highlight" Property="Opacity" Value=".09" />
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="Highlight" Property="Opacity" Value="1" />
+                <Setter TargetName="Highlight" Property="Opacity" Value=".14" />
                 <Setter TargetName="Caption" Property="Opacity" Value=".84" />
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
@@ -548,14 +548,22 @@
       </DockPanel>
       <Grid Grid.Row="1" Margin="12,0,12,12">
         <Grid.ColumnDefinitions><ColumnDefinition x:Name="NavColumn" Width="215" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-        <Border CornerRadius="{DynamicResource PanelRadius}" Background="{DynamicResource Glass}"
-                BorderBrush="{DynamicResource GlassRim}" BorderThickness="1" Padding="7">
+        <Border x:Name="NavigationRail" CornerRadius="{DynamicResource PanelRadius}" Background="{DynamicResource ChromeFill}"
+                BorderBrush="{DynamicResource GlassRim}" BorderThickness="{DynamicResource PanelStroke}" Padding="7">
           <DockPanel>
             <StackPanel x:Name="NavFoot" DockPanel.Dock="Bottom" Margin="0,7,0,0" />
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
               <StackPanel x:Name="Nav" KeyboardNavigation.TabNavigation="Continue" />
             </ScrollViewer>
           </DockPanel>
+        </Border>
+        <Border x:Name="Reflection" CornerRadius="{DynamicResource PanelRadius}" IsHitTestVisible="False" Opacity="0">
+          <Border.Background>
+            <RadialGradientBrush RadiusX=".8" RadiusY=".25">
+              <GradientStop Color="#18FFFFFF" Offset="0" />
+              <GradientStop Color="#00FFFFFF" Offset="1" />
+            </RadialGradientBrush>
+          </Border.Background>
         </Border>
         <Grid Grid.Column="1" Margin="12,0,0,0">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>

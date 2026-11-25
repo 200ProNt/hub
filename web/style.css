@@ -1,7 +1,7 @@
 /* Hub — общая тема для всех инструментов */
 
 :root {
-  --ease-out: cubic-bezier(0.22, 0.8, 0.25, 1);
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --bg: #f7f8fa;
   --card: #ffffff;
   --card-soft: #f7f8fa;
@@ -1552,9 +1552,9 @@ html[data-desktop] .splash { display: none; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes pop { 0% { transform: scale(0.82); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes pop { 0% { transform: scale(0.94); } 70% { transform: scale(1.015); } 100% { transform: scale(1); } }
 @keyframes popIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes rowIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+@keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes modalExit { to { opacity: 0; } }
 @keyframes modalCardExit { to { opacity: 0; transform: translateY(6px) scale(0.98); } }
@@ -2979,200 +2979,34 @@ html[data-motion="off"] .clip {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-/* ---------- Настоящий Fluent Acrylic Glassmorphism ---------- */
+[data-glass="off"] {
+  --bg: color-mix(in oklab, var(--accent) 4%, var(--card));
+  --sidebar: color-mix(in oklab, var(--accent) 12%, var(--card));
+  --card-soft: color-mix(in oklab, var(--accent) 7%, var(--card));
+  --radius-lg: 20px;
+  --radius-md: 12px;
+}
+[data-glass="off"] :is(.btn, .nav-item, .theme-toggle) { border-radius: 100px; }
 
-/* 1. Фоновое свечение (Canvas): сочные светящиеся градиентные сферы, размывающиеся сквозь стекло */
 [data-glass="on"] body {
-  background-color: var(--glass-canvas-bg) !important;
-  background-image:
-    radial-gradient(850px 650px at 8% 8%, var(--glass-glow-1), transparent 68%),
-    radial-gradient(800px 600px at 92% 14%, var(--glass-glow-2), transparent 68%),
-    radial-gradient(900px 750px at 50% 90%, var(--glass-glow-3), transparent 70%),
-    radial-gradient(650px 650px at 85% 70%, var(--glass-glow-4), transparent 68%) !important;
-  background-attachment: fixed !important;
+  background: radial-gradient(ellipse at 8% 8%, var(--glass-glow-1), transparent 54%),
+              radial-gradient(ellipse at 90% 78%, var(--glass-glow-2), transparent 60%),
+              var(--glass-canvas-bg);
+  background-attachment: fixed;
 }
-
-/* 2. Стеклянные поверхности */
-[data-glass="on"] .sidebar {
-  background-color: rgba(255, 255, 255, 0.55) !important;
-  background-image:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.25) 100%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.025'/%3E%3C/svg%3E") !important;
-  backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.65) !important;
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
-    0 16px 40px -10px rgba(31, 38, 135, 0.12) !important;
+[data-glass="on"] :is(.sidebar, .palette-card, .modal-card) {
+  background: linear-gradient(125deg, #ffffff24, transparent 36%, #ffffff09),
+              color-mix(in srgb, var(--card) 87%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-radius: 22px;
+  box-shadow: inset 0 1px 0 #ffffff70, inset 1px 0 0 #ffffff22, var(--shadow-md);
 }
-
-[data-glass="on"] .card,
-[data-glass="on"] .modal-card,
-[data-glass="on"] .palette-card {
-  position: relative;
-  background-color: rgba(255, 255, 255, 0.55) !important;
-  background-image:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.25) 100%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.025'/%3E%3C/svg%3E") !important;
-  backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.65) !important;
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
-    0 16px 40px -10px rgba(31, 38, 135, 0.12) !important;
-}
-
-/* Тёмная тема: глубокое матовое стекло с микро-шумом и преломлением света */
-[data-theme="dark"][data-glass="on"] .sidebar {
-  background-color: rgba(16, 20, 30, 0.48) !important;
-  background-image:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.01) 100%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E") !important;
-  backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    0 18px 45px -10px rgba(0, 0, 0, 0.6) !important;
-}
-
-[data-theme="dark"][data-glass="on"] .card,
-[data-theme="dark"][data-glass="on"] .modal-card,
-[data-theme="dark"][data-glass="on"] .palette-card {
-  position: relative;
-  background-color: rgba(16, 20, 30, 0.48) !important;
-  background-image:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.01) 100%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E") !important;
-  backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) contrast(105%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22),
-    0 18px 45px -10px rgba(0, 0, 0, 0.6) !important;
-}
-
-/* 3. Верхний световой блик на гранях стекла */
-[data-glass="on"] .card::before,
-[data-glass="on"] .modal-card::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.2) 20%,
-    rgba(255, 255, 255, 0.75) 50%,
-    rgba(255, 255, 255, 0.2) 80%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* 4. Внутренние элементы и поля ввода на стекле (аккуратные закругления) */
-[data-glass="on"] .settings-item {
-  background: rgba(255, 255, 255, 0.5) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.65) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
-}
-
-[data-theme="dark"][data-glass="on"] .settings-item {
-  background: rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-}
-
-[data-glass="on"] .settings-item:hover {
-  background: rgba(255, 255, 255, 0.65) !important;
-  border-color: rgba(255, 255, 255, 0.85) !important;
-}
-
-[data-theme="dark"][data-glass="on"] .settings-item:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
-}
-
-[data-glass="on"] .card-soft,
-[data-glass="on"] .home-vital-card,
-[data-glass="on"] .home-todo-item,
-[data-glass="on"] .home-clip-item,
-[data-glass="on"] .search,
-[data-glass="on"] .path-field,
-[data-glass="on"] .select-field,
-[data-glass="on"] .notes-search,
-[data-glass="on"] .rules-cat-input,
-[data-glass="on"] .rules-ext-input,
-[data-glass="on"] .rules-field input,
-[data-glass="on"] .note-title-input,
-[data-glass="on"] .note-text-input,
-[data-glass="on"] .home-quick-input,
-[data-glass="on"] textarea {
-  border-radius: var(--radius-md) !important;
-  background: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.5) !important;
-}
-
-[data-theme="dark"][data-glass="on"] .card-soft,
-[data-theme="dark"][data-glass="on"] .home-vital-card,
-[data-theme="dark"][data-glass="on"] .home-todo-item,
-[data-theme="dark"][data-glass="on"] .home-clip-item,
-[data-theme="dark"][data-glass="on"] .search,
-[data-theme="dark"][data-glass="on"] .path-field,
-[data-theme="dark"][data-glass="on"] .select-field,
-[data-theme="dark"][data-glass="on"] .notes-search,
-[data-theme="dark"][data-glass="on"] .rules-cat-input,
-[data-theme="dark"][data-glass="on"] .rules-ext-input,
-[data-theme="dark"][data-glass="on"] .rules-field input,
-[data-theme="dark"][data-glass="on"] .note-title-input,
-[data-theme="dark"][data-glass="on"] .note-text-input,
-[data-theme="dark"][data-glass="on"] .home-quick-input,
-[data-theme="dark"][data-glass="on"] textarea {
-  border-radius: var(--radius-md) !important;
-  background: rgba(255, 255, 255, 0.04) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.09) !important;
-}
-
-/* Изоляция полей ввода внутри составных контейнеров (поиск, путь, выпадающие списки) */
-[data-glass="on"] .search input,
-[data-glass="on"] .path-field input,
-[data-glass="on"] .notes-search input,
-[data-glass="on"] .palette-field input,
-[data-glass="on"] .select-field select {
-  background: transparent !important;
-  border: 0 !important;
-  outline: 0 !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-[data-glass="on"] input[type="checkbox"],
-[data-glass="on"] input[type="radio"] {
-  background: transparent !important;
-  border: 0 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-[data-glass="on"] .search:focus-within,
-[data-glass="on"] .path-field:focus-within,
-[data-glass="on"] .notes-search:focus-within,
-[data-glass="on"] .select-field:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px var(--ring) !important;
+@supports (backdrop-filter: blur(1px)) {
+  [data-glass="on"] :is(.sidebar, .palette-card, .modal-card) {
+    background-color: color-mix(in srgb, var(--card) 68%, transparent);
+    background-image: linear-gradient(125deg, #ffffff24, transparent 36%, #ffffff09);
+    backdrop-filter: blur(26px) saturate(145%);
+  }
 }
 
 /* Кнопка открытия настроек в сайдбаре */
@@ -4040,7 +3874,7 @@ html[data-motion="off"] .clip {
   .home-hero, .settings-item { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
-  html:not([data-motion="on"]) *, html:not([data-motion="on"]) *::before, html:not([data-motion="on"]) *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }

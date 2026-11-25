@@ -132,7 +132,7 @@ Hub.setBusy = function (active, text = "Работаю…") {
   }
 };
 
-const motionOn = () => document.documentElement.dataset.motion !== "off";
+const motionOn = () => document.documentElement.dataset.motion !== "off" && !window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 let activeDialog = null;
 let dialogId = 0;
 
@@ -268,9 +268,6 @@ function initMotion() {
   } catch {
     saved = null;
   }
-  // Системная настройка «уменьшить движение» здесь намеренно не учитывается: в Windows
-  // эффекты анимации часто отключены по умолчанию, и хаб выглядел бы совсем без движения.
-  // Кому анимации мешают — выключает их этим переключателем, выбор запоминается.
   applyMotion(saved !== "off");
 }
 
@@ -384,7 +381,7 @@ function applyGlass(enabled) {
     document.documentElement.dataset.glass = enabled ? "on" : "off";
   }
   const label = document.getElementById("glassLabel");
-  if (label) label.textContent = enabled ? "Стекло включено" : "Стекло выключено";
+  if (label) label.textContent = enabled ? "Liquid Glass" : "Material You";
   const btn = document.getElementById("glassBtn");
   if (btn && btn.setAttribute) btn.setAttribute("aria-pressed", String(enabled));
   try {

@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 from System import DateTime, TimeSpan
 from System.Globalization import CultureInfo
-from System.Windows import CornerRadius, Thickness, Visibility
+from System.Windows import Thickness, Visibility
 from System.Windows.Controls import Border, StackPanel
 from System.Windows.Input import Key, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherTimer
@@ -31,8 +31,9 @@ def listen(page, field, changed):
 def card(page, build):
     parent = page.panel
     inner = StackPanel()
-    surface = make(Border, CornerRadius=CornerRadius(15), BorderThickness=Thickness(1),
-                   Padding=Thickness(14, 11, 14, 9), Margin=Thickness(0, 8, 0, 7), Child=inner)
+    surface = make(Border, Padding=Thickness(18, 13, 18, 12), Margin=Thickness(0, 8, 0, 7), Child=inner)
+    surface.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
+    surface.SetResourceReference(Border.BorderThicknessProperty, "PanelStroke")
     surface.SetResourceReference(Border.BackgroundProperty, "Layer")
     surface.SetResourceReference(Border.BorderBrushProperty, "Edge")
     page.add(surface)

@@ -132,7 +132,15 @@ class Page:
         return value
 
     def check(self, title, checked=False):
-        return self.add(make(CheckBox, Content=title, IsChecked=bool(checked)))
+        check = make(CheckBox, Content=title, IsChecked=bool(checked))
+
+        def changed(*_):
+            box = check.Template.FindName("Box", check) if check.Template else None
+            if box is not None:
+                self.hub.animate(box, "press")
+
+        check.Click += changed
+        return self.add(check)
 
     def actions(self, *entries):
         wrap = make(WrapPanel, Orientation=Orientation.Horizontal, Margin=Thickness(0, 2, 0, 7))
@@ -148,6 +156,12 @@ class Page:
     def rows(self, max_height=320, multiple=False):
         box = make(ListBox, MaxHeight=max_height, MinHeight=38, Margin=Thickness(0, 3, 0, 8),
                       SelectionMode=SelectionMode.Extended if multiple else SelectionMode.Single)
+        def selected(_, event):
+            if self.hub.motion_enabled():
+                for row in event.AddedItems:
+                    if isinstance(row, ListBoxItem):
+                        self.hub._transition(row, ListBoxItem.OpacityProperty, .72, 1, 140)
+        box.SelectionChanged += selected
         return self.add(box)
 
     @staticmethod

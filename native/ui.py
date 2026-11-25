@@ -24,8 +24,8 @@ from System.Windows.Automation import AutomationProperties
 from System.Windows.Controls import Border, Button, Grid, Orientation, ScrollViewer, StackPanel
 from System.Windows.Input import Key, Keyboard, KeyboardNavigation, KeyboardNavigationMode, ModifierKeys
 from System.Windows.Markup import XamlReader
-from System.Windows.Media import BrushConverter, ColorConverter, LinearGradientBrush, RotateTransform, ScaleTransform, TranslateTransform
-from System.Windows.Media.Animation import DoubleAnimation, QuadraticEase, EasingMode, FillBehavior
+from System.Windows.Media import BrushConverter, ColorConverter, GradientStop, LinearGradientBrush, RotateTransform, ScaleTransform, TranslateTransform
+from System.Windows.Media.Animation import CubicEase, DoubleAnimation, EasingMode, FillBehavior
 from System.Windows.Media.Imaging import BitmapFrame
 from System.Windows.Threading import DispatcherTimer
 
@@ -77,6 +77,11 @@ class HubWindow:
         self.widget("SearchInput").TextChanged += self.search_changed
         self.widget("SearchResults").MouseDoubleClick += lambda *_: self.choose_search()
         self.widget("Overlay").MouseLeftButtonDown += self.overlay_click
+        rail = self.widget("NavigationRail")
+        reflection = self.widget("Reflection")
+        reflection.Background = reflection.Background.Clone()
+        rail.MouseMove += self.move_reflection
+        rail.MouseLeave += lambda *_: self.hide_reflection()
         self.go("home")
 
     def dispatch(self, callback):
@@ -84,7 +89,12 @@ class HubWindow:
             self.window.Dispatcher.BeginInvoke(Action(callback))
 
     def notice(self, text):
-        self.widget("Status").Text = str(text or "Готово")
+        status = self.widget("Status")
+        message = str(text or "Готово")
+        if status.Text != message:
+            status.Text = message
+            if self.motion_enabled():
+                self._transition(status, status.OpacityProperty, .65, 1, 140)
 
     def apply_theme(self):
         self.settings = preferences.read()
@@ -93,7 +103,8 @@ class HubWindow:
             style = "glass"
         theme = "light" if self.settings.get("hub-theme") == "light" else "dark"
         dark = theme == "dark"
-        colors = palette(style, theme, self.settings.get("hub-accent"))
+        accent = SystemParameters.WindowGlassColor
+        colors = palette(style, theme, self.settings.get("hub-accent"), f"#{accent.R:02X}{accent.G:02X}{accent.B:02X}")
         clear = style == "glass" and self.settings.get("desktop-glass", "on") == "on"
         if not acrylic(self.window, clear, dark):
             colors["Tint"] = colors["Solid"]
@@ -103,10 +114,39 @@ class HubWindow:
         for key, value in zip(("ControlRadius", "FieldRadius", "PanelRadius", "RowRadius"), RADII[style]):
             self.window.Resources[key] = CornerRadius(value)
         edge = self.window.Resources["Edge"]
-        self.window.Resources["GlassRim"] = (
-            LinearGradientBrush(ColorConverter.ConvertFromString("#A8F1F8FF"), edge.Color, 110)
-            if style == "glass" else edge
-        )
+        chrome = self.window.Resources["Glass"]
+        rim = edge
+        if style == "glass":
+            rim = LinearGradientBrush(ColorConverter.ConvertFromString("#C8FFFFFF"), edge.Color, 125)
+            rim.GradientStops.Add(GradientStop(ColorConverter.ConvertFromString("#227D93AB"), .53))
+            chrome = LinearGradientBrush(self.window.Resources["Selected"].Color, chrome.Color, 124)
+            chrome.GradientStops.Add(GradientStop(self.window.Resources["Glass"].Color, .34))
+        self.window.Resources["ChromeFill"] = chrome
+        self.window.Resources["GlassRim"] = rim
+        self.window.Resources["PanelStroke"] = Thickness(0 if style == "material" else 1)
+        self.hide_reflection()
+
+    def hide_reflection(self):
+        reflection = self.widget("Reflection")
+        opacity = reflection.Opacity
+        reflection.Opacity = 0
+        if opacity and self.motion_enabled():
+            self._transition(reflection, Border.OpacityProperty, opacity, 0, 170)
+        else:
+            reflection.BeginAnimation(Border.OpacityProperty, None)
+
+    def move_reflection(self, rail, event):
+        if self.settings.get("hub-style", "glass") != "glass" or not self.motion_enabled() or SystemParameters.HighContrast:
+            return
+        cursor = event.GetPosition(rail)
+        center = Point(cursor.X / max(1, rail.ActualWidth), cursor.Y / max(1, rail.ActualHeight))
+        reflection = self.widget("Reflection")
+        reflection.Background.Center = center
+        reflection.Background.GradientOrigin = center
+        if reflection.ReadLocalValue(Border.OpacityProperty) != 1:
+            start = reflection.Opacity
+            reflection.Opacity = 1
+            self._transition(reflection, Border.OpacityProperty, start, 1, 160)
 
     def change_settings(self, **values):
         preferences.update(values)
@@ -131,6 +171,15 @@ class HubWindow:
                 self.notice(str(error))
 
         button.Click += clicked
+        def hover(sender, _):
+            if self.motion_enabled() and sender.Template:
+                layer = sender.Template.FindName("Highlight", sender)
+                if layer is not None:
+                    entering = sender.IsMouseOver
+                    self._transition(layer, Border.OpacityProperty, 0 if entering else .09,
+                                     .09 if entering else 0, 130 if entering else 190)
+        button.MouseEnter += hover
+        button.MouseLeave += hover
         return button
 
     def nav_button(self, name, icon, callback):
@@ -244,7 +293,7 @@ class HubWindow:
     @staticmethod
     def _transition(target, prop, start, end, milliseconds):
         effect = DoubleAnimation(start, end, Duration(TimeSpan.FromMilliseconds(milliseconds)))
-        effect.EasingFunction = make(QuadraticEase, EasingMode=EasingMode.EaseOut)
+        effect.EasingFunction = make(CubicEase, EasingMode=EasingMode.EaseOut)
         effect.FillBehavior = FillBehavior.Stop
         target.BeginAnimation(prop, effect)
 
@@ -255,7 +304,7 @@ class HubWindow:
             scale = ScaleTransform(1, 1)
             element.RenderTransformOrigin = Point(.5, .5 if kind == "press" else 0)
             element.RenderTransform = scale
-            size, duration = (.96, 120) if kind == "press" else (.975, 230)
+            size, duration = (.975, 155) if kind == "press" else (.965, 260)
             self._transition(scale, ScaleTransform.ScaleXProperty, size, 1, duration)
             self._transition(scale, ScaleTransform.ScaleYProperty, size, 1, duration)
             if kind == "press":
@@ -263,8 +312,8 @@ class HubWindow:
         else:
             shift = TranslateTransform(0, 0)
             element.RenderTransform = shift
-            self._transition(shift, TranslateTransform.YProperty, 7, 0, 185)
-        self._transition(element, type(element).OpacityProperty, .72, 1, 205)
+            self._transition(shift, TranslateTransform.YProperty, 12, 0, 260)
+        self._transition(element, type(element).OpacityProperty, .45, 1, 195)
 
     def animate_dropdown(self, combo, opened):
         template = combo.Template
@@ -274,11 +323,13 @@ class HubWindow:
         popup = template.FindName("PART_Popup", combo)
         if chevron is not None:
             end = 180 if opened else 0
+            previous = chevron.RenderTransform
+            start = previous.Angle if isinstance(previous, RotateTransform) else 0
             rotation = RotateTransform(end)
             chevron.RenderTransformOrigin = Point(.5, .5)
             chevron.RenderTransform = rotation
             if self.motion_enabled():
-                self._transition(rotation, RotateTransform.AngleProperty, 180 - end, end, 150)
+                self._transition(rotation, RotateTransform.AngleProperty, start, end, 180)
         if opened and popup is not None and popup.Child is not None:
             self.animate(popup.Child, "sheet")
 
@@ -386,7 +437,7 @@ class HubWindow:
             page.notice(str(error))
             import traceback
             traceback.print_exc()
-        self.animate(page.panel)
+        self.animate(host)
 
     def keydown(self, _, event):
         if self.release_overlay is not None:

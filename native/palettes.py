@@ -1,5 +1,11 @@
 """Цветовые роли и формы настольного Hub."""
 
+from functools import lru_cache
+
+from materialyoucolor.dynamiccolor.material_dynamic_colors import MaterialDynamicColors
+from materialyoucolor.hct import Hct
+from materialyoucolor.scheme.scheme_tonal_spot import SchemeTonalSpot
+
 KEYS = ("Ink", "Muted", "Solid", "Tint", "Glass", "Layer", "Field", "Hover", "Edge",
         "Accent", "AccentInk", "Selected", "Track", "Scrim")
 PALETTES = {
@@ -11,20 +17,13 @@ PALETTES = {
         "#182B40", "#3D5671", "#ECF3FC", "#A9EBF4FF", "#D4F5F9FF", "#F7F8FBFF",
         "#EBEDF5FD", "#607DA7D2", "#C88EACCB", "#235882", "#FFFFFF", "#6898BCE0", "#4E8CAACB", "#4B283B54",
     ),
-    ("material", "dark"): (
-        "#F1EDF7", "#D1C7DF", "#181520", "#181520", "#292337", "#2F283E",
-        "#221C30", "#3E3451", "#6C5B85", "#D8C4FF", "#342051", "#51406C", "#483C5B", "#88140D20",
-    ),
-    ("material", "light"): (
-        "#242032", "#4D435D", "#FCF7FF", "#FCF7FF", "#EEE4FB", "#F6EEFF",
-        "#EAE0F4", "#E3D5F4", "#A68EBB", "#604388", "#FFFFFF", "#DCC9F3", "#D8C9E7", "#5B3D2D56",
-    ),
+
 }
 ACCENTS = {
     "emerald": ("#A4F0B6", "#176247"), "ocean": ("#A8D4FF", "#145A9C"),
     "sunset": ("#FFD1A4", "#8D421A"), "pink": ("#FFC0DE", "#8D2E62"),
 }
-RADII = {"glass": (15, 13, 22, 10), "material": (23, 11, 27, 14)}
+RADII = {"glass": (16, 12, 22, 10), "material": (24, 6, 20, 20)}
 
 
 def _tint(color, accent, amount):
@@ -35,7 +34,27 @@ def _tint(color, accent, amount):
     return "#" + alpha + "".join(f"{channel:02X}" for channel in channels)
 
 
-def palette(style, theme, accent):
+MATERIAL_ROLES = {
+    "Ink": "onSurface", "Muted": "onSurfaceVariant", "Solid": "surface", "Tint": "surface",
+    "Glass": "surfaceContainer", "Layer": "surfaceContainerLow", "Field": "surfaceContainerHighest",
+    "Hover": "secondaryContainer", "Edge": "outlineVariant", "Accent": "primary",
+    "AccentInk": "onPrimary", "Selected": "secondaryContainer", "Track": "surfaceContainerHigh",
+}
+
+
+@lru_cache(maxsize=16)
+def _material(theme, seed):
+    source = Hct.from_int(0xFF000000 | int(seed[1:], 16))
+    scheme = SchemeTonalSpot(source, theme == "dark", 0.0, spec_version="2025")
+    roles = MaterialDynamicColors(spec="2025")
+    colors = {key: getattr(roles, role).get_hex(scheme)[:7] for key, role in MATERIAL_ROLES.items()}
+    return dict(colors, Scrim="#73000000")
+
+
+def palette(style, theme, accent, system_accent=None):
+    if style == "material":
+        seed = ACCENTS[accent][1] if accent in ACCENTS else system_accent or "#6750A4"
+        return _material(theme, seed).copy()
     colors = dict(zip(KEYS, PALETTES.get((style, theme), PALETTES["glass", "dark"])))
     if accent in ACCENTS:
         chosen = ACCENTS[accent][theme == "light"]

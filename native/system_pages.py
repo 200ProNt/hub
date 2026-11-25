@@ -299,7 +299,8 @@ def _trash(page):
 def _vital(grid, title, *, meter=False, history=False):
     card = make(Border, Margin=Thickness(0, 0, 8, 8), Padding=Thickness(12, 9, 12, 8),
                 BorderThickness=Thickness(1))
-    card.SetResourceReference(Border.BackgroundProperty, "Glass")
+    card.SetResourceReference(Border.BackgroundProperty, "Layer")
+    card.SetResourceReference(Border.BorderThicknessProperty, "PanelStroke")
     card.SetResourceReference(Border.BorderBrushProperty, "Edge")
     card.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
     panel = StackPanel()
