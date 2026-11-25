@@ -39,6 +39,29 @@ def get_drop_url(port: int = 8770) -> str:
     return f"http://{get_local_ip()}:{port}/drop"
 
 
+def qr_png(url: str) -> bytes:
+    """Скругляет модули, сохраняя квадратные ориентиры и белое поле QR."""
+    from io import BytesIO
+
+    import qrcode
+    from PIL import Image, ImageDraw
+    from qrcode.image.styledpil import StyledPilImage
+    from qrcode.image.styles.moduledrawers.pil import RoundedModuleDrawer, SquareModuleDrawer
+
+    code = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=8, border=4)
+    code.add_data(url)
+    picture = code.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(radius_ratio=.78),
+                              eye_drawer=SquareModuleDrawer()).get_image().convert("RGBA")
+    width, height = picture.size
+    radius = min(24, width // 11)
+    mask = Image.new("L", picture.size)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, width - 1, height - 1), radius=radius, fill=255)
+    picture.putalpha(mask)
+    with BytesIO() as data:
+        picture.save(data, format="PNG")
+        return data.getvalue()
+
+
 def _sanitize_filename(name: str) -> str:
     """Очищает имя файла от опасных символов и попыток обхода директорий."""
     basename = Path(name).name

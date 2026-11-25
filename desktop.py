@@ -72,7 +72,7 @@ def run(background, activate_event, kernel):
     watcher = server.start_clipboard()
     threading.Thread(target=http.serve_forever, daemon=True).start()
     try:
-        run_window(http.server_port, server.VERSION, server.default_folder(), start_hidden, setup)
+        run_window(http.server_port, server.VERSION, server.default_folder(), start_hidden, setup, server.CHANGELOG[0])
     finally:
         exiting.set()
         if listener is not None:

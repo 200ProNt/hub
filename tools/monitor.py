@@ -7,10 +7,8 @@
 только пока процесс реально работает, поэтому одной цифры «сейчас» не существует.
 Фоновый поток делает снимок раз в секунду, страница забирает готовый.
 
-Закрывать процессы можно, но осторожно: только свои (та же сессия Windows), только
-не системные и только если процесс с момента списка не подменился. Перед закрытием
-сверяется время запуска — PID переиспользуется, и по одному номеру можно случайно
-попасть в чужой процесс.
+Закрытие процесса и сворачивание окон требуют проверки сессии Windows, имени
+и времени запуска процесса из списка, поскольку PID переиспользуется.
 """
 
 from __future__ import annotations
@@ -27,6 +25,11 @@ FIRST_WAIT = 0.35
 MAX_PROCESSES = 400
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_TERMINATE = 0x0001
+SYNCHRONIZE = 0x00100000
+WAIT_TIMEOUT = 258
+SW_MINIMIZE = 6
+GA_ROOT = 2
+DWMWA_CLOAKED = 14
 FILETIME_EPOCH = 11_644_473_600  # секунд между 1601-01-01 и 1970-01-01
 
 # Без этих процессов Windows живёт плохо, а иногда и не живёт вовсе.
@@ -55,7 +58,7 @@ PROTECTED_NAMES = {
 
 
 class MonitorError(RuntimeError):
-    """Снимок или закрытие процесса не получились."""
+    """Не удалось получить снимок или выполнить действие над процессом."""
 
 
 class _MemoryCounters(ctypes.Structure):
@@ -101,6 +104,8 @@ def _libs() -> dict:
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    dwmapi = ctypes.WinDLL("dwmapi")
 
     kernel32.OpenProcess.restype = wintypes.HANDLE
     kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
@@ -123,6 +128,7 @@ def _libs() -> dict:
     kernel32.GetTickCount64.restype = ctypes.c_ulonglong
     kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
     kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
     kernel32.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(_MemoryStatus)]
 
     psapi.EnumProcesses.argtypes = [
@@ -138,12 +144,28 @@ def _libs() -> dict:
     ]
     psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
 
-    _libs_cache = {"kernel32": kernel32, "psapi": psapi}
+    enum_callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows.argtypes = [enum_callback, wintypes.LPARAM]
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsIconic.argtypes = [wintypes.HWND]
+    user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.GetAncestor.restype = wintypes.HWND
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.ShowWindowAsync.argtypes = [wintypes.HWND, ctypes.c_int]
+    dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+
+    _libs_cache = {"kernel32": kernel32, "psapi": psapi, "user32": user32,
+                   "dwmapi": dwmapi, "enum_callback": enum_callback}
     return _libs_cache
 
 
 def _filetime(value: wintypes.FILETIME) -> float:
-    return (value.dwHighDateTime << 32 | value.dwLowDateTime) / 10_000_000
+    return _filetime_ticks(value) / 10_000_000
+
+
+def _filetime_ticks(value: wintypes.FILETIME) -> int:
+    return value.dwHighDateTime << 32 | value.dwLowDateTime
 
 
 def _percent(delta_seconds: float, span_seconds: float, cores: int) -> float:
@@ -159,15 +181,15 @@ def _protected(name: str) -> bool:
 
 
 def _refuse_reason(info: dict, own_pid: int, session: int) -> str:
-    """Почему процесс нельзя закрыть. Пустая строка — можно."""
+    """Почему действие над процессом недоступно."""
     if info.get("pid") in (0, 4):
         return "Это системный процесс Windows"
     if info.get("pid") == own_pid:
         return "Это сам хаб — он выключится вместе с сервером"
     if _protected(info.get("name", "")):
         return f"«{info.get('name')}» защищён: без него Windows работает плохо"
-    if info.get("session") != session:
-        return "Это процесс системы, а не твой — его не трогаем"
+    if session <= 0 or info.get("session") != session:
+        return "Процесс запущен вне твоей сессии Windows"
     return ""
 
 
@@ -199,10 +221,12 @@ def _session(libs: dict, pid: int) -> int:
     return int(session.value)
 
 
-def _process_info(libs: dict, pid: int) -> dict | None:
+def _process_info(libs: dict, pid: int, handle=None) -> dict | None:
     """Имя, память и время процессора. None — процесс закрыт или недоступен."""
     kernel32 = libs["kernel32"]
-    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    own_handle = handle is None
+    if own_handle:
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return None
     try:
@@ -218,13 +242,14 @@ def _process_info(libs: dict, pid: int) -> dict | None:
         exited = wintypes.FILETIME()
         kernel = wintypes.FILETIME()
         user = wintypes.FILETIME()
-        kernel32.GetProcessTimes(
+        if not kernel32.GetProcessTimes(
             handle,
             ctypes.byref(created),
             ctypes.byref(exited),
             ctypes.byref(kernel),
             ctypes.byref(user),
-        )
+        ):
+            return None
         counters = _MemoryCounters()
         counters.cb = ctypes.sizeof(counters)
         memory = 0
@@ -238,11 +263,43 @@ def _process_info(libs: dict, pid: int) -> dict | None:
             "session": _session(libs, pid),
             "cpu_seconds": round(_filetime(kernel) + _filetime(user), 4),
             "created": round(started, 3),
+            "creation": str(_filetime_ticks(created)),
             "started": round(started - FILETIME_EPOCH, 0) if started else 0,
             "memory": memory,
         }
     finally:
-        kernel32.CloseHandle(handle)
+        if own_handle:
+            kernel32.CloseHandle(handle)
+
+
+def _window_owner(libs: dict, window: int) -> int:
+    user32 = libs["user32"]
+    if not user32.IsWindowVisible(window) or user32.IsIconic(window) or user32.GetAncestor(window, GA_ROOT) != window:
+        return 0
+    cloaked = wintypes.DWORD()
+    if libs["dwmapi"].DwmGetWindowAttribute(window, DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked)) or cloaked.value:
+        return 0
+    pid = wintypes.DWORD()
+    return pid.value if user32.GetWindowThreadProcessId(window, ctypes.byref(pid)) else 0
+
+
+def _visible_windows(libs: dict) -> dict[int, list[int]]:
+    windows = {}
+
+    @libs["enum_callback"]
+    def collect(window, _):
+        pid = _window_owner(libs, window)
+        if pid:
+            windows.setdefault(pid, []).append(window)
+        return True
+
+    if not libs["user32"].EnumWindows(collect, 0):
+        return {}
+    return windows
+
+
+def _process_identity(info: dict) -> tuple[str, float, str]:
+    return info["name"], info["created"], info["creation"]
 
 
 def _memory(libs: dict) -> dict:
@@ -282,8 +339,9 @@ def _refresh() -> None:
         info = _process_info(libs, pid)
         if info is None:
             continue
-        current[pid] = (info["cpu_seconds"], info["created"])
+        current[pid] = (info["cpu_seconds"], info["creation"])
         entries.append(info)
+    windows = _visible_windows(libs)
 
     with _state["lock"]:
         previous = _state["previous"]
@@ -292,7 +350,7 @@ def _refresh() -> None:
         total_delta = 0.0
         for entry in entries:
             before = previous.get(entry["pid"])
-            if before and before[1] == entry["created"]:
+            if before and before[1] == entry["creation"]:
                 delta = max(0.0, entry["cpu_seconds"] - before[0])
                 total_delta += delta
                 entry["cpu"] = _percent(delta, span, cores)
@@ -305,6 +363,7 @@ def _refresh() -> None:
         for entry in entries:
             reason = _refuse_reason(entry, own_pid, own_session)
             entry["can_stop"] = not reason
+            entry["can_minimize"] = not reason and entry["pid"] in windows
             entry["why_not"] = reason
             entry["own"] = entry["pid"] == own_pid
 
@@ -312,7 +371,7 @@ def _refresh() -> None:
         _state["previous"] = current
         _state["previous_time"] = wall
         _state["allowed"] = {
-            entry["pid"]: (entry["name"], entry["created"]) for entry in entries if entry["can_stop"]
+            entry["pid"]: _process_identity(entry) for entry in entries if entry["can_stop"]
         }
         ready = span > 0.05
         cpu_val = _percent(total_delta, span, cores) if ready else 0.0
@@ -386,30 +445,40 @@ def snapshot() -> dict:
         time.sleep(0.05)
 
 
-def terminate(pid: int, expected: tuple[str, float] | None = None) -> dict:
+def _allowed_process(pid: int) -> tuple[str, float, str]:
+    allowed = _state["allowed"].get(pid)
+    if allowed is None:
+        raise MonitorError("Процесс недоступен в последнем снимке. Обнови список и попробуй снова.")
+    return allowed
+
+
+def _check_process(libs: dict, pid: int, handle, allowed: tuple[str, float, str]) -> dict:
+    info = _process_info(libs, pid, handle)
+    if info is None:
+        raise MonitorError("Процесс завершился или Windows ограничила доступ")
+    if _process_identity(info) != allowed:
+        raise MonitorError("Процесс изменился. Обнови список.")
+    own_pid = os.getpid()
+    reason = _refuse_reason(info, own_pid, _session(libs, own_pid))
+    if reason:
+        raise MonitorError(reason)
+    return info
+
+
+def terminate(pid: int, expected: tuple[str, float] | tuple[str, float, str] | None = None) -> dict:
     """Закрыть процесс из последнего снимка."""
     with _state["lock"]:
-        allowed = _state["allowed"].get(pid)
-        if allowed is None:
-            raise MonitorError("Этого процесса нет в последнем списке — обнови и попробуй снова")
-        if expected is not None and expected != allowed:
-            raise MonitorError("Процесс изменился; обнови список")
+        allowed = _allowed_process(pid)
+        if expected is not None and expected != allowed[:len(expected)]:
+            raise MonitorError("Процесс изменился. Обнови список.")
 
         libs = _libs()
-        info = _process_info(libs, pid)
-        if info is None:
-            raise MonitorError("Процесс уже завершился")
-        if (info["name"], info["created"]) != allowed:
-            raise MonitorError("Процесс изменился; список обновится сам")
-
-        reason = _refuse_reason(info, os.getpid(), _session(libs, os.getpid()))
-        if reason:
-            raise MonitorError(reason)
-
-        handle = libs["kernel32"].OpenProcess(PROCESS_TERMINATE, False, pid)
+        access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | SYNCHRONIZE
+        handle = libs["kernel32"].OpenProcess(access, False, pid)
         if not handle:
             raise MonitorError("Windows не разрешил закрыть этот процесс")
         try:
+            info = _check_process(libs, pid, handle, allowed)
             if not libs["kernel32"].TerminateProcess(handle, 1):
                 raise MonitorError("Процесс не закрылся: Windows отказал")
             libs["kernel32"].WaitForSingleObject(handle, 1500)
@@ -418,3 +487,32 @@ def terminate(pid: int, expected: tuple[str, float] | None = None) -> dict:
 
         _state["allowed"].pop(pid, None)
         return {"stopped": True, "pid": pid, "name": info["name"]}
+
+
+def minimize(pid: int, name: str, creation: str) -> dict:
+    """Запросить сворачивание видимых окон выбранного процесса."""
+    with _state["lock"]:
+        allowed = _allowed_process(pid)
+        if (name, creation) != (allowed[0], allowed[2]):
+            raise MonitorError("Процесс изменился. Обнови список.")
+        libs = _libs()
+        kernel32 = libs["kernel32"]
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, False, pid)
+        if not handle:
+            raise MonitorError("Процесс завершился или Windows ограничила доступ")
+        try:
+            _check_process(libs, pid, handle, allowed)
+            windows = _visible_windows(libs).get(pid, [])
+            requested = 0
+            for window in windows:
+                if _window_owner(libs, window) != pid:
+                    continue
+                if kernel32.WaitForSingleObject(handle, 0) != WAIT_TIMEOUT:
+                    break
+                if libs["user32"].ShowWindowAsync(window, SW_MINIMIZE):
+                    requested += 1
+            if not requested:
+                raise MonitorError("Видимых окон сейчас нет или Windows не разрешила их свернуть")
+            return {"requested": requested, "pid": pid, "name": name}
+        finally:
+            kernel32.CloseHandle(handle)

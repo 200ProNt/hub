@@ -126,6 +126,8 @@ class Page:
         for item in values:
             value.Items.Add(str(item))
         value.SelectedIndex = index
+        value.DropDownOpened += lambda *_: self.hub.animate_dropdown(value, True)
+        value.DropDownClosed += lambda *_: self.hub.animate_dropdown(value, False)
         column.Children.Add(value)
         return value
 

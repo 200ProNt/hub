@@ -50,10 +50,21 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.5.1",
+        "date": "2026-11-25",
+        "title": "Оформление и обновления",
+        "items": [
+            "Material You и Liquid Glass меняют палитру, панели и форму элементов Hub.",
+            "Новые переходы, скруглённый QR-код и знакомый значок из четырёх квадратов.",
+            "Обновлённый мониторинг ПК с возможностью свернуть окно выбранного приложения.",
+            "Проверка релизов GitHub, установка обновления из Hub и экран «Что нового».",
+        ],
+    },
     {
         "version": "1.5.0",
         "date": "2026-11-24",
@@ -723,9 +734,11 @@ class HubHandler(BaseHTTPRequestHandler):
                 try:
                     from qrcode import make
                     from qrcode.image.svg import SvgPathFillImage
+                    from qrcode.image.styles.moduledrawers.svg import SvgPathCircleDrawer
                 except ImportError:
                     return self._send_json({"error": "QR-код недоступен, используй адрес"}, 404)
-                svg = make(qrdrop.get_drop_url(self.server.server_port), image_factory=SvgPathFillImage).to_string()
+                svg = make(qrdrop.get_drop_url(self.server.server_port), image_factory=SvgPathFillImage,
+                           module_drawer=SvgPathCircleDrawer()).to_string()
                 self.send_response(200)
                 self.send_header("Content-Type", "image/svg+xml")
                 self.send_header("Content-Length", str(len(svg)))
@@ -1017,8 +1030,19 @@ class HubHandler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 raise ApiError("Не понял, какой процесс закрывать")
             if "created" in body or "name" in body:
-                return monitor.terminate(pid, (str(body.get("name", "")), float(body.get("created", 0))))
+                expected = (str(body.get("name", "")), float(body.get("created", 0)))
+                if "creation" in body:
+                    expected += (str(body["creation"]),)
+                return monitor.terminate(pid, expected)
             return monitor.terminate(pid)
+
+        if path == "/api/monitor/minimize":
+            if self.client_address[0] != "127.0.0.1":
+                raise ApiError("Сворачивание окон доступно только на этом компьютере", 403)
+            pid, name, creation = body.get("pid"), body.get("name"), body.get("creation")
+            if type(pid) is not int or pid <= 0 or not isinstance(name, str) or not isinstance(creation, str):
+                raise ApiError("Выбери процесс и попробуй снова")
+            return monitor.minimize(pid, name, creation)
 
         if path == "/api/notes/create":
             return {"item": notes.store().create(str(body.get("title", "")), str(body.get("text", "")))}

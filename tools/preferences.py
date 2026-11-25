@@ -1,6 +1,7 @@
 """Перенос и хранение настроек настольного Hub."""
 
 import json
+import re
 import shutil
 import stat
 import tempfile
@@ -11,6 +12,7 @@ from tools import paths
 
 OPTIONS = {
     "hub-theme": {"light", "dark"},
+    "hub-style": {"glass", "material"},
     "hub-motion": {"on", "off"},
     "hub-glass": {"on", "off"},
     "desktop-glass": {"on", "off"},
@@ -37,7 +39,10 @@ def update(values: dict) -> dict:
         settings = read()
         settings.update({
             key: value for key, value in values.items()
-            if isinstance(value, str) and value in OPTIONS.get(key, ())
+            if isinstance(value, str) and (
+                value in OPTIONS.get(key, ()) or
+                key == "hub-release-seen" and re.fullmatch(r"\d{1,5}(?:\.\d{1,5}){2,3}", value)
+            )
         })
         filename = paths.DATA_DIR / "preferences.json"
         temporary = filename.with_suffix(".tmp")

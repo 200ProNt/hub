@@ -615,7 +615,12 @@ def _diskmap(page):
     def render_files():
         visible = state["files"][:state["limit"]] if state["files_open"] else []
         count = len(state["files"])
-        files_box.Visibility = Visibility.Visible if state["files_open"] else Visibility.Collapsed
+        shown = state["files_open"]
+        if shown and files_box.Visibility != Visibility.Visible:
+            files_box.Visibility = Visibility.Visible
+            page.hub.animate(files_box)
+        elif not shown:
+            files_box.Visibility = Visibility.Collapsed
         file_summary.Text = f"Файлы в этой папке · Показано {len(visible)} из {count}" if state["files_open"] else ""
         page.show_rows(files_box, visible, _file_line)
 

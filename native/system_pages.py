@@ -1,14 +1,15 @@
 """Native QR-Drop, Trash, Monitor and About pages."""
 
 from datetime import datetime
-from io import BytesIO
 from urllib.parse import urlencode
 
 from System import Array, Byte, TimeSpan
 from System.IO import MemoryStream
 from System.Windows import HorizontalAlignment, MessageBox, Point, Thickness, Visibility, Window
+from System.Windows import FontWeights, GridLength, TextAlignment, TextTrimming, TextWrapping
 from System.Windows.Automation import AutomationProperties
 from System.Windows.Controls import Image, ProgressBar, ScrollBarVisibility, StackPanel, TextBlock
+from System.Windows.Controls import Border, ColumnDefinition, Grid, ListBoxItem
 from System.Windows.Controls.Primitives import UniformGrid
 from System.Windows.Media import PointCollection, Stretch
 from System.Windows.Media.Imaging import BitmapCacheOption, BitmapImage
@@ -16,6 +17,7 @@ from System.Windows.Shapes import Polyline
 from System.Windows.Threading import DispatcherTimer
 
 from tools import paths
+from .widgets import label, make
 
 
 def _size(value):
@@ -91,11 +93,9 @@ def _loader(page, path, render):
 
 
 def _qr_bitmap(url):
-    import qrcode
+    from tools.qrdrop import qr_png
 
-    with BytesIO() as output:
-        qrcode.make(url, box_size=5).save(output, format="PNG")
-        data = output.getvalue()
+    data = qr_png(url)
     stream = MemoryStream(Array[Byte](data))
     try:
         bitmap = BitmapImage()
@@ -112,9 +112,10 @@ def _qr_bitmap(url):
 def _qrdrop(page):
     page.text("Подключи телефон и компьютер к одной сети Wi-Fi, затем наведи камеру на QR-код.", muted=True)
     qr = Image()
-    qr.Width = qr.Height = 195
+    qr.Width = qr.Height = 207
     qr.Stretch = Stretch.Uniform
     qr.HorizontalAlignment = HorizontalAlignment.Left
+    qr.Margin = Thickness(0, 3, 0, 12)
     qr.Visibility = Visibility.Collapsed
     AutomationProperties.SetName(qr, "QR-код подключения телефона")
     page.add(qr)
@@ -295,83 +296,125 @@ def _trash(page):
     refresh()
 
 
-def _vital(grid, label, *, meter=False, history=False):
+def _vital(grid, title, *, meter=False, history=False):
+    card = make(Border, Margin=Thickness(0, 0, 8, 8), Padding=Thickness(12, 9, 12, 8),
+                BorderThickness=Thickness(1))
+    card.SetResourceReference(Border.BackgroundProperty, "Glass")
+    card.SetResourceReference(Border.BorderBrushProperty, "Edge")
+    card.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
     panel = StackPanel()
-    panel.Margin = Thickness(0, 0, 18, 12)
-    heading = TextBlock()
-    heading.Text = label
-    panel.Children.Add(heading)
-    value = TextBlock()
-    value.FontSize = 16
-    value.Text = "—"
+    card.Child = panel
+    panel.Children.Add(label(title, 12, muted=True))
+    value = label("—", 22)
+    value.FontWeight = FontWeights.SemiBold
+    value.Margin = Thickness(0, 1, 0, 0)
     panel.Children.Add(value)
+    detail = label("", 12, muted=True)
+    panel.Children.Add(detail)
     bar = None
     if meter:
-        bar = ProgressBar()
-        bar.Height = 7
-        bar.Margin = Thickness(0, 6, 0, 2)
-        bar.SetResourceReference(ProgressBar.ForegroundProperty, "Accent")
-        AutomationProperties.SetName(bar, label)
+        bar = make(ProgressBar, Height=9, Margin=Thickness(0, 7, 0, 0))
+        AutomationProperties.SetName(bar, title)
         panel.Children.Add(bar)
     line = None
     if history:
-        line = Polyline()
-        line.Points = PointCollection()
-        line.Height = 26
-        line.Width = 160
-        line.Margin = Thickness(0, 4, 0, 0)
-        line.HorizontalAlignment = HorizontalAlignment.Left
+        line = make(Polyline, Points=PointCollection(), Height=16, Width=108, Margin=Thickness(0, 3, 0, 0),
+                    HorizontalAlignment=HorizontalAlignment.Left, StrokeThickness=1.25, Opacity=0.75)
         line.SetResourceReference(Polyline.StrokeProperty, "Accent")
-        line.StrokeThickness = 1.5
         panel.Children.Add(line)
-    grid.Children.Add(panel)
-    return value, bar, line
+    grid.Children.Add(card)
+    return value, detail, bar, line
 
 
 def _percent(value):
     return f"{float(value or 0):g}%".replace(".", ",")
 
 
-def _set_vital(vital, caption, percent=0, points=()):
-    value, bar, line = vital
+def _set_vital(vital, caption, description="", percent=0, points=()):
+    value, detail, bar, line = vital
     value.Text = caption
+    detail.Text = description
     if bar is not None:
         bar.Value = min(100, max(0, percent))
     if line is not None:
         line.Points.Clear()
         if len(points) > 1:
             for index, number in enumerate(points):
-                line.Points.Add(Point(index * 158 / (len(points) - 1), 25 - min(100, max(0, number)) * 0.24))
+                line.Points.Add(Point(index * 106 / (len(points) - 1), 15 - min(100, max(0, number)) * 0.14))
 
 
 def _process_identity(item):
-    return item["pid"], item["created"], item["name"]
+    return item["pid"], item["name"], item["creation"]
+
+
+def _process_columns(*values, heading=False):
+    grid = Grid()
+    for index, (value, width) in enumerate(zip(values, (None, 72, 96, 73))):
+        definition = ColumnDefinition()
+        if width is not None:
+            definition.Width = GridLength(width)
+        grid.ColumnDefinitions.Add(definition)
+        cell = label(value, 12 if heading else 13, muted=heading)
+        cell.TextWrapping = TextWrapping.NoWrap
+        cell.TextTrimming = TextTrimming.CharacterEllipsis
+        if heading:
+            cell.FontWeight = FontWeights.SemiBold
+        if index:
+            cell.TextAlignment = TextAlignment.Right
+        Grid.SetColumn(cell, index)
+        grid.Children.Add(cell)
+    return grid
 
 
 def _monitor(page):
-    grid = UniformGrid()
-    grid.Columns = 2
-    page.add(grid)
+    grid = page.add(make(UniformGrid, Columns=2, Margin=Thickness(0, 0, -8, 0)))
+    grid.SizeChanged += lambda *_: setattr(grid, "Columns", 4 if grid.ActualWidth >= 720 else 2)
     cpu = _vital(grid, "Процессор", meter=True, history=True)
     ram = _vital(grid, "Память", meter=True, history=True)
     disk = _vital(grid, "Системный диск", meter=True)
     uptime = _vital(grid, "Без перезагрузки")
-    live = page.text("Обновляется каждые 2 секунды", muted=True)
+
+    filters = page.add(Grid())
     query = page.field("Имя процесса или PID")
     order = page.choice("Сортировка", ["По процессору", "По памяти", "По имени"])
+    for index, field in enumerate((query, order)):
+        group = field.Parent
+        page.panel.Children.Remove(group)
+        if index == 0:
+            group.Margin = Thickness(0, 2, 10, 8)
+        filters.ColumnDefinitions.Add(ColumnDefinition())
+        Grid.SetColumn(group, index)
+        filters.Children.Add(group)
+
+    state = page.add(Grid())
+    state.ColumnDefinitions.Add(make(ColumnDefinition, Width=GridLength.Auto))
+    state.ColumnDefinitions.Add(ColumnDefinition())
     paused = page.check("Пауза обновления")
-    count = page.text("Процессы", size=19)
-    rows = page.rows(max_height=390)
-    page.text("Системные процессы защищены.", muted=True)
+    page.panel.Children.Remove(paused)
+    state.Children.Add(paused)
+    live = label("Обновление каждые 2 с", 12, muted=True)
+    live.Margin = Thickness(10, 5, 0, 6)
+    live.TextAlignment = TextAlignment.Right
+    Grid.SetColumn(live, 1)
+    state.Children.Add(live)
+
+    count = page.section("Процессы")
     processes = []
     shown = []
 
-    def describe(item):
-        suffix = "  ·  Hub" if item.get("own") else ""
-        if not item["can_stop"] and item.get("why_not"):
-            suffix += f"  ·  {item['why_not']}"
-        started = f"  ·  запущен {_date(item['started'])}" if item.get("started") else ""
-        return f"{item['name']}  ·  PID {item['pid']}  ·  ЦП {_percent(item['cpu'])}  ·  {_size(item['memory'])}{started}{suffix}"
+    def selected(*_):
+        selection = page.selected(rows, shown)
+        item = selection[0] if selection else None
+        stop_button.IsEnabled = bool(item and item["can_stop"])
+        minimize_button.IsEnabled = bool(item and item.get("can_minimize"))
+        if not item:
+            info.Text = "Выбери процесс." if shown else ("Нет подходящих процессов." if processes else "Загружаю процессы…")
+        elif not item["can_stop"]:
+            info.Text = item["why_not"]
+        elif not item.get("can_minimize"):
+            info.Text = "У выбранного процесса нет видимых окон."
+        else:
+            info.Text = f"Выбран {item['name']} · PID {item['pid']}"
 
     def render_list(*_):
         nonlocal shown
@@ -380,22 +423,51 @@ def _monitor(page):
 
         def sort_keys(item):
             name, cpu, memory = item["name"].casefold(), -item["cpu"], -item["memory"]
-            return ((cpu, memory, name), (memory, cpu, name), (name, cpu, memory))[max(order.SelectedIndex, 0)]
+            keys = ((cpu, memory, name), (memory, cpu, name), (name, cpu, memory))
+            return (*keys[max(order.SelectedIndex, 0)], item["pid"])
 
         items.sort(key=sort_keys)
         count.Text = f"Процессы · {len(items)} из {len(processes)}" if search else f"Процессы · {len(items)}"
-        shown = _replace_rows(page, rows, shown, items, describe, _process_identity)
+        selection = page.selected(rows, shown)
+        chosen = _process_identity(selection[0]) if selection else None
+        had_focus = rows.IsKeyboardFocusWithin
+        for index, item in enumerate(items):
+            if index >= rows.Items.Count:
+                content = _process_columns("", "", "", "")
+                rows.Items.Add(make(ListBoxItem, Content=content, Tag=index, Padding=Thickness(8, 4, 8, 4)))
+            elif item == shown[index]:
+                continue
+            row = rows.Items[index]
+            values = item["name"], _percent(item["cpu"]), _size(item["memory"]), str(item["pid"])
+            for cell, value in zip(row.Content.Children, values):
+                cell.Text = value
+            AutomationProperties.SetName(row, f"{values[0]}, ЦП {values[1]}, память {values[2]}, PID {values[3]}")
+            started = f"\nЗапущен {_date(item['started'])}" if item.get("started") else ""
+            protected = f"\n{item['why_not']}" if item.get("why_not") else ""
+            row.ToolTip = f"{values[0]} · PID {values[3]}{started}{protected}"
+        shown = items
+        while rows.Items.Count > len(items):
+            rows.Items.RemoveAt(rows.Items.Count - 1)
+        index = next((i for i, item in enumerate(items) if _process_identity(item) == chosen), -1)
+        if rows.SelectedIndex != index:
+            rows.SelectedIndex = index
+            if had_focus and index >= 0:
+                rows.ScrollIntoView(rows.Items[index])
+                rows.Items[index].Focus()
+        selected()
 
     def render(data):
         nonlocal processes
         system = data["system"]
         memory, drive = system["memory"], system["disk"]
         history = data.get("history", [])
-        _set_vital(cpu, f"{_percent(system['cpu'])}  ·  ядер: {system['cores']}", system["cpu"], [v["cpu"] for v in history])
-        _set_vital(ram, f"{_percent(memory['percent'])}  ·  {_size(memory['used'])} из {_size(memory['total'])}",
+        _set_vital(cpu, _percent(system["cpu"]), f"Ядер: {system['cores']}", system["cpu"], [v["cpu"] for v in history])
+        _set_vital(ram, _percent(memory["percent"]), f"{_size(memory['used'])} из {_size(memory['total'])}",
                    memory["percent"], [v["memory"] for v in history])
-        free = 100 - drive["percent"] if drive["total"] else 0
-        _set_vital(disk, f"Свободно {_size(drive['free'])} из {_size(drive['total'])}" if drive["total"] else "—", free)
+        if drive["total"]:
+            _set_vital(disk, _size(drive["free"]), f"Свободно из {_size(drive['total'])}", 100 - drive["percent"])
+        else:
+            _set_vital(disk, "—")
         total_hours, minutes = divmod(int(system["uptime"]) // 60, 60)
         days, hours = divmod(total_hours, 24)
         _set_vital(uptime, f"{days} д  {hours} ч  {minutes} мин" if days else f"{hours} ч  {minutes} мин")
@@ -409,32 +481,47 @@ def _monitor(page):
             reload()
 
     def toggle_pause(*_):
-        live.Text = "Обновление приостановлено" if paused.IsChecked else "Обновляется каждые 2 секунды"
+        live.Text = "Обновление на паузе" if paused.IsChecked else "Обновление каждые 2 с"
         refresh()
 
-    def terminate():
+    def process_action(action):
         item = _selected(page, rows, shown, "Выбери процесс.")
         if not item:
             return
         if not item["can_stop"]:
             page.notice(item.get("why_not") or "Процесс защищён.")
             return
-        pid, created, name = _process_identity(item)
-        if not page.confirm("Закрыть процесс?", f"«{name}» (PID {pid}) завершится. Несохранённые данные будут потеряны."):
-            return
+        pid, name, creation = _process_identity(item)
+        if action == "terminate":
+            if not page.confirm("Закрыть процесс?", f"«{name}» (PID {pid}) завершится. Несохранённые данные будут потеряны."):
+                return
 
         def finished(result):
             reload()
-            page.notice(f"«{result['name']}» закрыт.")
+            if action == "terminate":
+                page.notice(f"«{result['name']}» закрыт.")
+            else:
+                page.notice(f"Сворачивание запрошено. Окон: {result['requested']}.")
 
-        payload = {"pid": pid, "created": created, "name": name}
-        page.run(lambda: page.post("/api/monitor/terminate", payload), finished, message="Закрываю процесс…")
+        payload = {"pid": pid, "created": item["created"], "name": name, "creation": creation}
+        message = "Закрываю процесс…" if action == "terminate" else "Сворачиваю окна…"
+        page.run(lambda: page.post(f"/api/monitor/{action}", payload), finished, message=message)
 
+    minimize_button, stop_button, _ = page.actions(("Свернуть окна", lambda: process_action("minimize")),
+                                                   ("Закрыть процесс", lambda: process_action("terminate")),
+                                                   ("Обновить", reload))
+    info = page.text("", muted=True)
+    header = _process_columns("Имя процесса", "ЦП", "Память", "PID", heading=True)
+    header.Margin = Thickness(14, 0, 23, 3)
+    page.add(header)
+    rows = page.rows(max_height=350)
+    AutomationProperties.SetName(rows, "Процессы")
     query.TextChanged += render_list
     order.SelectionChanged += render_list
     paused.Checked += toggle_pause
     paused.Unchecked += toggle_pause
-    page.actions(("Закрыть процесс", terminate), ("Обновить", reload))
+    rows.SelectionChanged += selected
+    selected()
     refresh()
     _poll(page, grid, 2, refresh)
 

@@ -168,6 +168,7 @@ def notes(page, query):
         editor.Visibility = Visibility.Visible
         title.Text = item["title"] if item else ""
         body.Text = item["text"] if item else ""
+        page.hub.animate(editor, "sheet")
         title.Focus()
 
     def close_editor():

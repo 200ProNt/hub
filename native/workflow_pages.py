@@ -35,10 +35,14 @@ def _group(page):
         page.panel = parent
 
 
-def _switch(choice, panels):
+def _switch(page, choice, panels):
     def update(*_):
         for index, panel in enumerate(panels):
-            panel.Visibility = Visibility.Visible if choice.SelectedIndex == index else Visibility.Collapsed
+            visibility = Visibility.Visible if choice.SelectedIndex == index else Visibility.Collapsed
+            if panel.Visibility != visibility:
+                panel.Visibility = visibility
+                if visibility == Visibility.Visible:
+                    page.hub.animate(panel)
 
     choice.SelectionChanged += update
     update()
@@ -132,7 +136,7 @@ def _renamer(page):
     with _group(page) as date_panel:
         date_format = page.choice("Формат даты изменения файла", ("ГГГГ-ММ-ДД", "ГГГГ-ММ-ДД_ЧЧ-ММ"))
         position = page.choice("Где добавить дату", ("В начале имени", "В конце имени"))
-    _switch(mode, (replace_panel, number_panel, affix_panel, case_panel, translit_panel, date_panel))
+    _switch(page, mode, (replace_panel, number_panel, affix_panel, case_panel, translit_panel, date_panel))
 
     source = None
     files = []
@@ -718,10 +722,10 @@ def _checksum(page):
             }
         with _group(page) as phrase_panel:
             words = _slider(page, "Количество слов", 2, 10, 4)
-        _switch(password_mode, (random_panel, phrase_panel))
+        _switch(page, password_mode, (random_panel, phrase_panel))
         page.actions(("Новый пароль", lambda: generate(), True),
                      ("Копировать пароль", lambda: page.copy(password.Text)))
-    _switch(mode, (file_group, text_group, password_group))
+    _switch(page, mode, (file_group, text_group, password_group))
     file_hashes = {}
     algorithms = {"sha256": "SHA-256", "md5": "MD5", "sha1": "SHA-1", "sha512": "SHA-512"}
 

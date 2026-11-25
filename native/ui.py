@@ -19,13 +19,13 @@ from System import Action, TimeSpan, Uri
 from System.Media import SystemSounds
 from System.Threading import ApartmentState, Thread, ThreadStart
 from System.Windows import Application, CornerRadius, FontWeights, GridLength, HorizontalAlignment, ShutdownMode
-from System.Windows import Duration, TextWrapping, Thickness, VerticalAlignment, Visibility, WindowState
+from System.Windows import Duration, Point, SystemParameters, TextWrapping, Thickness, VerticalAlignment, Visibility, WindowState
 from System.Windows.Automation import AutomationProperties
-from System.Windows.Controls import Border, Button, Grid, Orientation, StackPanel
-from System.Windows.Input import Key, Keyboard, ModifierKeys
+from System.Windows.Controls import Border, Button, Grid, Orientation, ScrollViewer, StackPanel
+from System.Windows.Input import Key, Keyboard, KeyboardNavigation, KeyboardNavigationMode, ModifierKeys
 from System.Windows.Markup import XamlReader
-from System.Windows.Media import BrushConverter
-from System.Windows.Media.Animation import DoubleAnimation, QuadraticEase, EasingMode
+from System.Windows.Media import BrushConverter, ColorConverter, LinearGradientBrush, RotateTransform, ScaleTransform, TranslateTransform
+from System.Windows.Media.Animation import DoubleAnimation, QuadraticEase, EasingMode, FillBehavior
 from System.Windows.Media.Imaging import BitmapFrame
 from System.Windows.Threading import DispatcherTimer
 
@@ -33,6 +33,7 @@ from tools import paths, preferences, tray
 from tools.registry import TOOLS
 
 from .backdrop import acrylic
+from .palettes import RADII, palette
 from .widgets import Page, glyph, label, make
 
 TITLES = {item["id"]: item for item in TOOLS}
@@ -41,24 +42,8 @@ GROUPS = (
     ("Файлы", ("sorter", "renamer", "dupes", "bigfiles", "diskmap", "compare", "images", "checksum", "cleanup")),
     ("Система", ("trash", "monitor", "about")),
 )
-THEMES = {
-    "dark": ("#F2F8F7", "#D6E2E0", "#111923", "#69101A1A", "#8E202929", "#EE202B2C",
-             "#E21A2425", "#554B6D68", "#68E7FFFA", "#9AE8CA", "#112A25", "#5267BB9E"),
-    "light": ("#122C28", "#2F4C46", "#E7F1EE", "#A4F2FBF9", "#C5F3FBF9", "#F3F8FDFB",
-              "#F3FCFFFE", "#506FADA0", "#DBFFFFFF", "#156550", "#FFFFFF", "#6262B196"),
-}
-COLOR_KEYS = ("Ink", "Muted", "Solid", "Tint", "Glass", "Layer", "Field", "Hover",
-              "Edge", "Accent", "AccentInk", "Selected")
-ACCENTS = {
-    "emerald": ("#A4F0B6", "#176247"),
-    "ocean": ("#8BCCFF", "#145A9C"),
-    "sunset": ("#FFD1A4", "#8D421A"),
-    "pink": ("#FFC0DE", "#8D2E62"),
-}
-
-
 class HubWindow:
-    def __init__(self, port, version, default_folder):
+    def __init__(self, port, version, default_folder, release=None):
         self.url = f"http://127.0.0.1:{port}"
         self.version = version
         self.default_folder = default_folder
@@ -69,6 +54,9 @@ class HubWindow:
         self.navigation = {}
         self.nav_labels = []
         self.settings = preferences.read()
+        self.release = release
+        self.release_overlay = None
+        self.release_focus = None
         self.exiting = False
         self.search_items = []
         self.focus_before_search = None
@@ -85,6 +73,7 @@ class HubWindow:
         self.window.SizeChanged += self.resize
         self.window.PreviewKeyDown += self.keydown
         self.window.Closing += self.closing
+        self.window.IsVisibleChanged += lambda *_: self.show_release(once=True) if self.window.IsVisible else None
         self.widget("SearchInput").TextChanged += self.search_changed
         self.widget("SearchResults").MouseDoubleClick += lambda *_: self.choose_search()
         self.widget("Overlay").MouseLeftButtonDown += self.overlay_click
@@ -99,16 +88,25 @@ class HubWindow:
 
     def apply_theme(self):
         self.settings = preferences.read()
-        theme = self.settings.get("hub-theme", "dark")
+        style = self.settings.get("hub-style", "glass")
+        if style not in RADII:
+            style = "glass"
+        theme = "light" if self.settings.get("hub-theme") == "light" else "dark"
         dark = theme == "dark"
-        colors = dict(zip(COLOR_KEYS, THEMES.get(theme, THEMES["dark"])))
-        accent = ACCENTS.get(self.settings.get("hub-accent"))
-        if accent:
-            colors["Accent"] = accent[0 if dark else 1]
-        if not acrylic(self.window, self.settings.get("desktop-glass", "on") == "on", dark):
+        colors = palette(style, theme, self.settings.get("hub-accent"))
+        clear = style == "glass" and self.settings.get("desktop-glass", "on") == "on"
+        if not acrylic(self.window, clear, dark):
             colors["Tint"] = colors["Solid"]
+        converter = BrushConverter()
         for key, value in colors.items():
-            self.window.Resources[key] = BrushConverter().ConvertFromString(value)
+            self.window.Resources[key] = converter.ConvertFromString(value)
+        for key, value in zip(("ControlRadius", "FieldRadius", "PanelRadius", "RowRadius"), RADII[style]):
+            self.window.Resources[key] = CornerRadius(value)
+        edge = self.window.Resources["Edge"]
+        self.window.Resources["GlassRim"] = (
+            LinearGradientBrush(ColorConverter.ConvertFromString("#A8F1F8FF"), edge.Color, 110)
+            if style == "glass" else edge
+        )
 
     def change_settings(self, **values):
         preferences.update(values)
@@ -127,6 +125,7 @@ class HubWindow:
 
         def clicked(*_):
             try:
+                self.animate(button, "press")
                 callback()
             except Exception as error:
                 self.notice(str(error))
@@ -218,6 +217,8 @@ class HubWindow:
         if self.window.WindowState == WindowState.Minimized:
             self.window.WindowState = WindowState.Normal
         self.window.Activate()
+        if self.release_overlay is not None:
+            return
         if route == "quick":
             self.open_search()
         elif route:
@@ -237,11 +238,99 @@ class HubWindow:
         self.exiting = True
         self.window.Close()
 
-    def animate(self, element):
-        if self.settings.get("hub-motion", "on") == "on":
-            effect = DoubleAnimation(.7, 1.0, Duration(TimeSpan.FromMilliseconds(170)))
-            effect.EasingFunction = make(QuadraticEase, EasingMode=EasingMode.EaseOut)
-            element.BeginAnimation(type(element).OpacityProperty, effect)
+    def motion_enabled(self):
+        return self.settings.get("hub-motion", "on") == "on" and SystemParameters.ClientAreaAnimation
+
+    @staticmethod
+    def _transition(target, prop, start, end, milliseconds):
+        effect = DoubleAnimation(start, end, Duration(TimeSpan.FromMilliseconds(milliseconds)))
+        effect.EasingFunction = make(QuadraticEase, EasingMode=EasingMode.EaseOut)
+        effect.FillBehavior = FillBehavior.Stop
+        target.BeginAnimation(prop, effect)
+
+    def animate(self, element, kind="page"):
+        if not self.motion_enabled():
+            return
+        if kind in ("press", "sheet"):
+            scale = ScaleTransform(1, 1)
+            element.RenderTransformOrigin = Point(.5, .5 if kind == "press" else 0)
+            element.RenderTransform = scale
+            size, duration = (.96, 120) if kind == "press" else (.975, 230)
+            self._transition(scale, ScaleTransform.ScaleXProperty, size, 1, duration)
+            self._transition(scale, ScaleTransform.ScaleYProperty, size, 1, duration)
+            if kind == "press":
+                return
+        else:
+            shift = TranslateTransform(0, 0)
+            element.RenderTransform = shift
+            self._transition(shift, TranslateTransform.YProperty, 7, 0, 185)
+        self._transition(element, type(element).OpacityProperty, .72, 1, 205)
+
+    def animate_dropdown(self, combo, opened):
+        template = combo.Template
+        if template is None:
+            return
+        chevron = template.FindName("Chevron", combo)
+        popup = template.FindName("PART_Popup", combo)
+        if chevron is not None:
+            end = 180 if opened else 0
+            rotation = RotateTransform(end)
+            chevron.RenderTransformOrigin = Point(.5, .5)
+            chevron.RenderTransform = rotation
+            if self.motion_enabled():
+                self._transition(rotation, RotateTransform.AngleProperty, 180 - end, end, 150)
+        if opened and popup is not None and popup.Child is not None:
+            self.animate(popup.Child, "sheet")
+
+    def show_release(self, *, once=False):
+        if not self.release or self.release_overlay is not None:
+            return
+        if once and self.settings.get("hub-release-seen") == self.version:
+            return
+        if self.widget("Overlay").Visibility == Visibility.Visible:
+            self.close_search()
+        self.release_focus = Keyboard.FocusedElement
+        overlay = self.release_overlay = Grid()
+        overlay.SetResourceReference(Grid.BackgroundProperty, "Scrim")
+        card = make(Border, BorderThickness=Thickness(1), Padding=Thickness(23, 19, 23, 21),
+                    Margin=Thickness(14, 49, 14, 15), MaxWidth=560,
+                    HorizontalAlignment=HorizontalAlignment.Stretch, VerticalAlignment=VerticalAlignment.Center)
+        card.SetResourceReference(Border.BackgroundProperty, "Layer")
+        card.SetResourceReference(Border.BorderBrushProperty, "GlassRim")
+        card.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
+        KeyboardNavigation.SetTabNavigation(card, KeyboardNavigationMode.Cycle)
+        content = StackPanel()
+        header = label(f"Что нового в Hub {self.version}", 24)
+        header.FontWeight = FontWeights.SemiBold
+        content.Children.Add(header)
+        heading = label(self.release.get("title", "Обновление Hub"), 14, True)
+        heading.Margin = Thickness(0, 5, 0, 10)
+        content.Children.Add(heading)
+        for item in self.release["items"]:
+            row = label(item, 14)
+            row.Margin = Thickness(0, 5, 0, 5)
+            content.Children.Add(row)
+        done = self.button("Готово", self.close_release, "Primary")
+        done.HorizontalAlignment = HorizontalAlignment.Right
+        done.Margin = Thickness(0, 12, 0, 0)
+        content.Children.Add(done)
+        card.Child = make(ScrollViewer, Content=content)
+        overlay.Children.Add(card)
+        self.widget("Shell").IsEnabled = False
+        self.window.Content.Children.Add(overlay)
+        self.animate(card, "sheet")
+        done.Focus()
+
+    def close_release(self):
+        if self.release_overlay is None:
+            return
+        self.window.Content.Children.Remove(self.release_overlay)
+        self.release_overlay = None
+        self.widget("Shell").IsEnabled = True
+        preferences.update({"hub-release-seen": self.version})
+        self.settings["hub-release-seen"] = self.version
+        if self.release_focus is not None:
+            Keyboard.Focus(self.release_focus)
 
     def go(self, target, query=""):
         if target not in TITLES and target != "settings":
@@ -300,6 +389,11 @@ class HubWindow:
         self.animate(page.panel)
 
     def keydown(self, _, event):
+        if self.release_overlay is not None:
+            if event.Key == Key.Escape:
+                event.Handled = True
+                self.close_release()
+            return
         modifiers = Keyboard.Modifiers
         opened = self.widget("Overlay").Visibility == Visibility.Visible
         if modifiers == ModifierKeys.Control and event.Key == Key.K:
@@ -327,6 +421,8 @@ class HubWindow:
             self.close_search()
 
     def open_search(self):
+        if self.release_overlay is not None:
+            return
         overlay = self.widget("Overlay")
         if overlay.Visibility == Visibility.Visible:
             self.widget("SearchInput").Focus()
@@ -337,7 +433,7 @@ class HubWindow:
         self.widget("SearchInput").Clear()
         self.refresh_search()
         self.widget("SearchInput").Focus()
-        self.animate(self.widget("Palette"))
+        self.animate(self.widget("Palette"), "sheet")
 
     def close_search(self):
         self.search_timer.Stop()
@@ -386,16 +482,27 @@ class HubWindow:
 
     def mount_settings(self, page):
         page.section("Внешний вид")
-        theme = page.choice("Тема", ("Тёмная", "Светлая"), self.settings.get("hub-theme") == "light")
+        styles = ("glass", "material")
+        preset = page.choice("Оформление", ("Liquid Glass", "Material You"), int(self.settings.get("hub-style") == "material"))
+        theme = page.choice("Режим", ("Тёмный", "Светлый"), int(self.settings.get("hub-theme") == "light"))
         accent_values = ("", "ocean", "emerald", "sunset", "pink")
         current_accent = self.settings.get("hub-accent", "")
-        accent = page.choice("Акцент", ("Ледяная мята", "Синий", "Изумрудный", "Тёплый", "Розовый"),
+        accent = page.choice("Оттенок палитры", ("По умолчанию", "Синий", "Изумрудный", "Тёплый", "Розовый"),
                              accent_values.index(current_accent) if current_accent in accent_values else 0)
         glass = page.check("Просвечивание через окно", self.settings.get("desktop-glass", "on") == "on")
         motion = page.check("Плавные переходы", self.settings.get("hub-motion", "on") == "on")
         sound = page.check("Звук при сохранении заметки", self.settings.get("hub-sound", "on") == "on")
-        theme.SelectionChanged += lambda *_: self.change_settings(**{"hub-theme": ("dark", "light")[theme.SelectedIndex]})
-        accent.SelectionChanged += lambda *_: self.change_settings(**{"hub-accent": accent_values[accent.SelectedIndex]})
+        glass.IsEnabled = preset.SelectedIndex == 0
+
+        def change_style(*_):
+            if preset.SelectedIndex >= 0:
+                glass.IsEnabled = preset.SelectedIndex == 0
+                self.change_settings(**{"hub-style": styles[preset.SelectedIndex]})
+                self.animate(page.panel)
+
+        preset.SelectionChanged += change_style
+        theme.SelectionChanged += lambda *_: theme.SelectedIndex >= 0 and self.change_settings(**{"hub-theme": ("dark", "light")[theme.SelectedIndex]})
+        accent.SelectionChanged += lambda *_: accent.SelectedIndex >= 0 and self.change_settings(**{"hub-accent": accent_values[accent.SelectedIndex]})
         for control, key in ((glass, "desktop-glass"), (motion, "hub-motion"), (sound, "hub-sound")):
             def changed(sender, _, setting=key):
                 self.change_settings(**{setting: "on" if sender.IsChecked else "off"})
@@ -439,6 +546,9 @@ class HubWindow:
         page.actions(("Сохранить резервную копию", lambda: page.download("/api/system/backup", "hub-backup.zip")),
                      ("Перенести настройки из браузера", lambda: page.open_url(self.url + "/transfer.html")),
                      ("Импорт настроек из файла", lambda: self.import_settings(page)))
+        from .update_ui import mount
+        mount(page)
+        page.actions(("Что нового в этой версии", self.show_release))
 
     def import_settings(self, page):
         import json
@@ -452,7 +562,7 @@ class HubWindow:
             settings = json.loads(filename.read_text(encoding="utf-8-sig"))
             if not isinstance(settings, dict):
                 raise ValueError("Файл должен содержать настройки Hub")
-            allowed = {key: value for key, value in settings.items() if key.startswith("hub-")}
+            allowed = {key: value for key, value in settings.items() if key.startswith("hub-") and key in preferences.OPTIONS}
             if not allowed:
                 raise ValueError("Файл должен содержать настройки Hub")
             self.change_settings(**allowed)
@@ -464,13 +574,13 @@ class HubWindow:
             SystemSounds.Asterisk.Play()
 
 
-def run_window(port, version, default_folder, hidden, setup):
+def run_window(port, version, default_folder, hidden, setup, release=None):
     failures = []
 
     def main():
         try:
             app = make(Application, ShutdownMode=ShutdownMode.OnMainWindowClose)
-            ui = HubWindow(port, version, default_folder)
+            ui = HubWindow(port, version, default_folder, release)
             app.MainWindow = ui.window
             setup(ui)
             if hidden:
