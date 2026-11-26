@@ -37,7 +37,6 @@ def run(background, activate_event, kernel):
 
     state = preferences.read()
     start_hidden = background and state.get("tray") != "off"
-    icon = paths.ROOT / "hub.ico"
     exiting = threading.Event()
     listener = None
 
@@ -52,7 +51,7 @@ def run(background, activate_event, kernel):
         http.apply_theme = lambda _: ui.dispatch(ui.apply_theme)
         server.tray.open_window = activate
         server.tray.close_window = http.close_window
-        server.tray.icon_path = icon if icon.is_file() else None
+        server.tray.icon_path = paths.ICON
 
         def listen_for_launches():
             if state.get("tray") != "off" and not server.tray.start_tray(http.server_port) and start_hidden:

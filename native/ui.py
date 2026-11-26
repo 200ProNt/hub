@@ -21,10 +21,10 @@ from System.Threading import ApartmentState, Thread, ThreadStart
 from System.Windows import Application, CornerRadius, FontWeights, GridLength, HorizontalAlignment, ShutdownMode
 from System.Windows import Duration, Point, SystemParameters, TextWrapping, Thickness, VerticalAlignment, Visibility, WindowState
 from System.Windows.Automation import AutomationProperties
-from System.Windows.Controls import Border, Button, Grid, Orientation, ScrollViewer, StackPanel
+from System.Windows.Controls import Border, Button, Grid, Image, Orientation, ScrollViewer, StackPanel
 from System.Windows.Input import Key, Keyboard, KeyboardNavigation, KeyboardNavigationMode, ModifierKeys
 from System.Windows.Markup import XamlReader
-from System.Windows.Media import BrushConverter, ColorConverter, GradientStop, LinearGradientBrush, RotateTransform, ScaleTransform, TranslateTransform
+from System.Windows.Media import BrushConverter, ColorConverter, GradientStop, ImageBrush, LinearGradientBrush, RotateTransform, ScaleTransform, TranslateTransform
 from System.Windows.Media.Animation import CubicEase, DoubleAnimation, EasingMode, FillBehavior
 from System.Windows.Media.Imaging import BitmapFrame
 from System.Windows.Threading import DispatcherTimer
@@ -33,7 +33,7 @@ from tools import paths, preferences, tray
 from tools.registry import TOOLS
 
 from .backdrop import acrylic
-from .palettes import RADII, palette
+from .palettes import ACCENTS, RADII, palette
 from .widgets import Page, glyph, label, make
 
 TITLES = {item["id"]: item for item in TOOLS}
@@ -62,11 +62,7 @@ class HubWindow:
         self.focus_before_search = None
         self.search_timer = make(DispatcherTimer, Interval=TimeSpan.FromMilliseconds(150))
         self.search_timer.Tick += self.refresh_search
-        icon_file = paths.ROOT / "hub.ico"
-        if icon_file.is_file():
-            from System.Windows.Media.Imaging import BitmapCacheOption, BitmapCreateOptions
-            self.window.Icon = BitmapFrame.Create(Uri(icon_file.as_uri()), BitmapCreateOptions.PreservePixelFormat,
-                                                   BitmapCacheOption.OnLoad)
+        self.window.Icon = BitmapFrame.Create(Uri(paths.ICON.as_uri()))
         self.material_controls = None
         for name in ("Control", "Primary", "Navigation"):
             self.window.Resources["Active" + name] = self.window.FindResource(name)
@@ -114,6 +110,9 @@ class HubWindow:
         converter = BrushConverter()
         for key, value in colors.items():
             self.window.Resources[key] = converter.ConvertFromString(value)
+        accented = self.settings.get("hub-accent") in ACCENTS
+        self.logo.Visibility = Visibility.Collapsed if accented else Visibility.Visible
+        self.accent_logo.Visibility = Visibility.Visible if accented else Visibility.Collapsed
         for key, value in zip(("ControlRadius", "FieldRadius", "PanelRadius", "RowRadius"), RADII[style]):
             self.window.Resources[key] = CornerRadius(value)
         edge = self.window.Resources["Edge"]
@@ -216,9 +215,17 @@ class HubWindow:
 
     def build_chrome(self):
         brand = self.widget("Brand")
-        logo = make(Border, CornerRadius=CornerRadius(9), Width=31, Height=31)
-        logo.SetResourceReference(Border.BackgroundProperty, "Accent")
-        logo.Child = glyph("mark", 21, "AccentInk")
+        tile = BitmapFrame.Create(Uri(paths.ICON.with_suffix(".png").as_uri()))
+        letter = BitmapFrame.Create(Uri(paths.ICON.with_name("hub-icon-letter.png").as_uri()))
+        logo = make(Grid, Width=31, Height=31)
+        self.logo = make(Image, Source=tile)
+        self.accent_logo = make(Grid, OpacityMask=ImageBrush(tile))
+        self.accent_logo.SetResourceReference(Grid.BackgroundProperty, "Accent")
+        mark = make(Border, OpacityMask=ImageBrush(letter))
+        mark.SetResourceReference(Border.BackgroundProperty, "AccentInk")
+        self.accent_logo.Children.Add(mark)
+        logo.Children.Add(self.logo)
+        logo.Children.Add(self.accent_logo)
         brand.Children.Add(logo)
         word = label("Hub", 20)
         word.FontWeight = FontWeights.Bold

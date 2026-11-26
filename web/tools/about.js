@@ -1,17 +1,9 @@
 /* Инструмент «О программе» */
 
 (function () {
-  const MARK = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="3.5" y="3.5" width="7" height="7" rx="2"/>
-      <rect x="13.5" y="3.5" width="7" height="7" rx="2"/>
-      <rect x="3.5" y="13.5" width="7" height="7" rx="2"/>
-      <rect x="13.5" y="13.5" width="7" height="7" rx="2"/>
-    </svg>`;
-
   const TEMPLATE = `
     <section class="card about-hero">
-      <div class="about-mark" aria-hidden="true">${MARK}</div>
+      <div class="about-mark" aria-hidden="true"></div>
       <div class="about-hero-text">
         <h2>Hub <span class="pill pill-quiet" id="aboutVersion">версия …</span></h2>
         <p>Локальный набор инструментов: буфер обмена, заметки, файлы, уборка и мониторинг ПК.</p>

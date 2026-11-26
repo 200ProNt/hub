@@ -122,18 +122,26 @@ body {
 
 .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
 
-.brand-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: #005fb8;
+:is(.brand-mark, .about-mark, .splash-mark) {
+  position: relative;
   flex: none;
+  background: url("hub-icon.png") center / contain no-repeat;
 }
 
-.brand-mark svg { width: 21px; height: 21px; }
+html[data-accent]:not([data-accent=""]) :is(.brand-mark, .about-mark, .splash-mark) {
+  background: var(--accent);
+  mask: url("hub-icon.png") center / contain no-repeat;
+}
+
+html[data-accent]:not([data-accent=""]) :is(.brand-mark, .about-mark, .splash-mark)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent-ink);
+  mask: url("hub-icon-letter.png") center / contain no-repeat;
+}
+
+.brand-mark { width: 32px; height: 32px; }
 
 .brand-text h1 {
   margin: 0;
@@ -1801,16 +1809,7 @@ html[data-desktop] .splash { display: none; }
 .about-mark {
   width: 56px;
   height: 56px;
-  border-radius: 17px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  color: #fff;
-  background: linear-gradient(140deg, var(--accent-2), var(--accent));
-  box-shadow: var(--shadow-sm);
 }
-
-.about-mark svg { width: 30px; height: 30px; }
 
 .about-hero-text { min-width: 0; }
 
@@ -2074,25 +2073,11 @@ html[data-desktop] .splash { display: none; }
 }
 
 .splash-mark {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
   width: 76px;
   height: 76px;
   margin-bottom: 22px;
+  animation: splashLogo 0.36s var(--ease-out) both;
 }
-
-.splash-mark i {
-  border-radius: 13px;
-  background: linear-gradient(145deg, var(--accent-2), var(--accent));
-  box-shadow: var(--shadow-sm);
-  animation: splashTile 0.6s var(--ease-out) both;
-}
-
-.splash-mark i:nth-child(1) { --sx: 12px; --sy: 12px; animation-delay: 0.04s; }
-.splash-mark i:nth-child(2) { --sx: -12px; --sy: 12px; animation-delay: 0.11s; }
-.splash-mark i:nth-child(3) { --sx: 12px; --sy: -12px; animation-delay: 0.18s; }
-.splash-mark i:nth-child(4) { --sx: -12px; --sy: -12px; animation-delay: 0.25s; }
 
 .splash-name {
   margin: 0;
@@ -2130,8 +2115,8 @@ html[data-desktop] .splash { display: none; }
   animation: splashBar 1.05s cubic-bezier(0.35, 0.1, 0.25, 1) 0.15s both;
 }
 
-@keyframes splashTile {
-  from { opacity: 0; transform: translate(var(--sx, 0), var(--sy, 0)) scale(0.55); }
+@keyframes splashLogo {
+  from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: none; }
 }
 
@@ -2847,8 +2832,7 @@ html[data-motion="off"] .splash { display: none; }
 @media (max-width: 520px) {
   .about-grid { grid-template-columns: minmax(0, 1fr); }
   .about-hero { align-items: flex-start; padding: 18px; }
-  .about-mark { width: 46px; height: 46px; border-radius: 14px; }
-  .about-mark svg { width: 25px; height: 25px; }
+  .about-mark { width: 46px; height: 46px; }
   .about-hero h2 { font-size: 21px; }
 }
 
