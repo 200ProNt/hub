@@ -319,15 +319,15 @@ html[data-desktop] .splash { display: none; }
 .btn.primary {
   background: linear-gradient(135deg, var(--accent-2), var(--accent));
   color: var(--accent-ink);
-  box-shadow: 0 6px 14px -6px rgba(91, 91, 214, 0.5);
+  box-shadow: var(--shadow-sm);
 }
 
-.btn.primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -11px rgba(91, 91, 214, 0.7); }
+.btn.primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 
 .btn.danger {
   background: linear-gradient(135deg, #f87171, var(--danger));
   color: #fff;
-  box-shadow: 0 6px 14px -6px rgba(229, 72, 77, 0.45);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn.danger:hover { transform: translateY(-1px); }
@@ -1464,14 +1464,14 @@ html[data-desktop] .splash { display: none; }
   place-items: center;
   color: #fff;
   background: linear-gradient(135deg, #34d399, var(--ok));
-  box-shadow: 0 14px 30px -14px rgba(24, 160, 88, 0.9);
+  box-shadow: var(--shadow-sm);
 }
 
 .result-icon svg { width: 26px; height: 26px; }
 
 .result-icon.warn {
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  box-shadow: 0 14px 30px -14px rgba(245, 158, 11, 0.9);
+  box-shadow: var(--shadow-sm);
 }
 
 .result-errors {
@@ -1700,19 +1700,12 @@ html[data-desktop] .splash { display: none; }
   border-radius: 50%;
   background: var(--ok);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 16%, transparent);
-  animation: monPulse 2.2s ease-in-out infinite;
 }
 
 .mon-live.is-paused { color: var(--warn); }
 .mon-live.is-paused .mon-dot {
   background: var(--warn);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 16%, transparent);
-  animation: none;
-}
-
-@keyframes monPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
 }
 
 .mon-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1814,7 +1807,7 @@ html[data-desktop] .splash { display: none; }
   flex: none;
   color: #fff;
   background: linear-gradient(140deg, var(--accent-2), var(--accent));
-  box-shadow: 0 12px 26px -14px rgba(91, 91, 214, 0.9);
+  box-shadow: var(--shadow-sm);
 }
 
 .about-mark svg { width: 30px; height: 30px; }
@@ -2092,7 +2085,7 @@ html[data-desktop] .splash { display: none; }
 .splash-mark i {
   border-radius: 13px;
   background: linear-gradient(145deg, var(--accent-2), var(--accent));
-  box-shadow: 0 10px 22px -12px rgba(91, 91, 214, 0.85);
+  box-shadow: var(--shadow-sm);
   animation: splashTile 0.6s var(--ease-out) both;
 }
 
@@ -2214,7 +2207,7 @@ html[data-motion="off"] .splash { display: none; }
   place-items: center;
   color: #fff;
   background: linear-gradient(140deg, var(--accent-2), var(--accent));
-  box-shadow: 0 14px 30px -16px rgba(91, 91, 214, 0.95);
+  box-shadow: var(--shadow-sm);
 }
 
 .intro-visual svg { width: 27px; height: 27px; }
@@ -2990,7 +2983,7 @@ html[data-motion="off"] .clip {
               color-mix(in srgb, var(--card) 87%, transparent);
   border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
   border-radius: 22px;
-  box-shadow: inset 0 1px 0 #ffffff70, inset 1px 0 0 #ffffff22, var(--shadow-md);
+  box-shadow: inset 0 1px 0 #ffffff70, var(--shadow-md);
 }
 @supports (backdrop-filter: blur(1px)) {
   [data-glass="on"] :is(.sidebar, .palette-card, .modal-card) {

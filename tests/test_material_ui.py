@@ -22,8 +22,12 @@ class MaterialThemeTests(unittest.TestCase):
                         state.update({"hub-style": "material", "hub-theme": mode})
                         hub.apply_theme()
                         kit = hub.material_controls.dictionary
+                        from MaterialDesignThemes.Wpf import ButtonAssist
                         self.assertEqual(field.Style, kit["MaterialDesignFilledTextBox"])
                         self.assertEqual(hub.navigation["home"].Style.BasedOn, kit["MaterialDesignFlatButton"])
+                        for control in (hub.navigation["home"], hub.search_button):
+                            self.assertEqual(ButtonAssist.GetCornerRadius(control).TopLeft, 8)
+                        self.assertEqual(hub.window.Resources["PanelRadius"].TopLeft, 12)
                         self.assertEqual(field.Text, "Поиск")
                         hub.go("settings")
                         self.assertEqual(hub.current.field("Тест").MinHeight, 56)

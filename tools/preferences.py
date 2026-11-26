@@ -41,7 +41,7 @@ def update(values: dict) -> dict:
             key: value for key, value in values.items()
             if isinstance(value, str) and (
                 value in OPTIONS.get(key, ()) or
-                key == "hub-release-seen" and re.fullmatch(r"\d{1,5}(?:\.\d{1,5}){2,3}", value)
+                key == "hub-release-seen" and re.fullmatch(r"\d{1,5}(?:\.\d{1,5}){2,4}", value)
             )
         })
         filename = paths.DATA_DIR / "preferences.json"

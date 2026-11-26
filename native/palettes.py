@@ -23,7 +23,8 @@ ACCENTS = {
     "emerald": ("#A4F0B6", "#176247"), "ocean": ("#A8D4FF", "#145A9C"),
     "sunset": ("#FFD1A4", "#8D421A"), "pink": ("#FFC0DE", "#8D2E62"),
 }
-RADII = {"glass": (16, 12, 22, 10), "material": (24, 6, 20, 20)}
+MATERIAL_CONTROL_RADIUS = 8
+RADII = {"glass": (16, 12, 22, 10), "material": (MATERIAL_CONTROL_RADIUS, 6, 12, 6)}
 
 
 def _tint(color, accent, amount):

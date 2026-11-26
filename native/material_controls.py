@@ -7,6 +7,8 @@ from System.Windows import CornerRadius, FontWeights, ResourceDictionary, Setter
 from System.Windows.Controls import Button, CheckBox, ComboBox, Slider, TextBox
 from System.Windows.Media import FontFamily
 
+from .palettes import MATERIAL_CONTROL_RADIUS
+
 ASSETS = Path(__file__).with_name("material")
 for assembly in ("Microsoft.Xaml.Behaviors", "MaterialDesignColors", "MaterialDesignThemes.Wpf"):
     clr.AddReference(str(ASSETS / (assembly + ".dll")))
@@ -29,7 +31,7 @@ class MaterialControls:
         for name, base in (("Control", "MaterialDesignOutlinedButton"), ("Primary", "MaterialDesignRaisedButton"),
                            ("Navigation", "MaterialDesignFlatButton")):
             style = Style(clr.GetClrType(Button), defaults[base])
-            style.Setters.Add(Setter(ButtonAssist.CornerRadiusProperty, CornerRadius(28)))
+            style.Setters.Add(Setter(ButtonAssist.CornerRadiusProperty, CornerRadius(MATERIAL_CONTROL_RADIUS)))
             style.Setters.Add(Setter(Button.PaddingProperty, Thickness(20, 0, 20, 0)))
             style.Setters.Add(Setter(Button.MinHeightProperty, 40.0))
             style.Setters.Add(Setter(Button.FontWeightProperty, FontWeights.Medium))

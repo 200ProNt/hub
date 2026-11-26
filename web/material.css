@@ -4,6 +4,9 @@
 @font-face { font-family: "Hub Roboto"; src: url("fonts/Roboto-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
 
 [data-glass="off"] {
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --bg: light-dark(#FDF7FE, #0F0D12);
   --sidebar: light-dark(#F2ECF5, #1B181F);
   --card: light-dark(#F8F1FA, #141218);
@@ -84,14 +87,20 @@
 }
 
 [data-glass="off"] body { font-family: "Hub Roboto", "Segoe UI", sans-serif; }
-[data-glass="off"] :is(.btn, .nav-item, .theme-toggle, .search) { border-radius: 100px; }
+[data-glass="off"] :is(.btn, .nav-item, .theme-toggle, .search, .quick-search, .chip, .clip-filters) {
+  border-radius: var(--radius-md);
+}
+[data-glass="off"] :is(.pill, .pill-good, .clip-badge, .clip-pill, .cmp-badge, .ren-badge, .mon-count, .about-release-badge) {
+  border-radius: var(--radius-sm);
+}
 [data-glass="off"] .btn { min-height: 40px; padding-inline: 20px; font-weight: 500; }
 [data-glass="off"] .btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
 [data-glass="off"] .sidebar { border: 0; padding-block: 20px; }
 [data-glass="off"] .nav-item { min-height: 48px; font-size: 14px; }
 [data-glass="off"] .nav-item.is-active { border-color: transparent; background: var(--accent-soft); color: var(--text); }
 [data-glass="off"] .workspace-head h2 { font-size: 32px; line-height: 1.25; font-weight: 400; }
-[data-glass="off"] .card { border: 0; box-shadow: none; background: var(--card-soft); border-radius: 20px; }
+[data-glass="off"] :is(.card, .modal-card, .palette-card, .intro-card) { border-radius: var(--radius-lg); }
+[data-glass="off"] .card { border: 0; box-shadow: none; background: var(--card-soft); }
 [data-glass="off"] .home-hero { background: var(--feature); color: var(--feature-ink); padding: 24px; }
 [data-glass="off"] .search { min-height: 48px; background: var(--sidebar); border: 0; }
 [data-glass="off"] .home-quick-input { min-height: 52px; background: var(--field); border-radius: 4px 4px 0 0; border-width: 0 0 1px; }

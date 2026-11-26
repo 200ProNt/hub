@@ -20,7 +20,7 @@ API_URL = "https://api.github.com/repos/200ProNt/hub/releases/latest"
 INSTALLER_NAME = "Hub-Setup-Windows-x64.exe"
 MAX_INSTALLER_SIZE = 256 * 1024 * 1024
 _ASSET_HOSTS = frozenset(("release-assets.githubusercontent.com", "objects.githubusercontent.com"))
-_VERSION = re.compile(r"[0-9]{1,6}(?:\.[0-9]{1,6}){2,3}")
+_VERSION = re.compile(r"[0-9]{1,6}(?:\.[0-9]{1,6}){2,4}")
 _VERIFY_ERROR = "Установщик не прошёл проверку размера или SHA-256."
 
 
@@ -73,7 +73,7 @@ def _version_key(version):
     if not isinstance(version, str) or not _VERSION.fullmatch(version):
         raise UpdateError("Версия Hub имеет неверный формат.")
     parts = tuple(map(int, version.split(".")))
-    return (parts + (0,))[:4]
+    return parts + (0,) * (5 - len(parts))
 
 
 def check(current_version):

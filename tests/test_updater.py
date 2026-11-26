@@ -46,6 +46,14 @@ class UpdaterTests(unittest.TestCase):
         self.assertIsNone(self.check_with(metadata(), "1.10.0.0"))
         self.assertIsNone(self.check_with(metadata(), "1.10.0.1"))
 
+    def test_check_uses_fifth_version_component(self):
+        release = updater.Release("1.5.2.5.1", RELEASE.size, RELEASE.sha256)
+        data = metadata(tag_name="v" + release.version, html_url=release.url)
+        data["assets"][0]["browser_download_url"] = release.installer_url
+        self.assertEqual(self.check_with(data, "1.5.2.5"), release)
+        self.assertIsNone(self.check_with(data, release.version))
+        self.assertIsNone(self.check_with(data, "1.5.2.6"))
+
     def test_check_skips_previews_and_drafts(self):
         for flags in ({"prerelease": True}, {"draft": True}):
             with self.subTest(flags=flags):

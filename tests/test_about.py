@@ -32,7 +32,7 @@ class AboutTestCase(unittest.TestCase):
         self.assertEqual(Path(info["readme"]).name, "README.md")
 
     def test_version_is_exposed_to_the_menu(self):
-        self.assertRegex(server.VERSION, r"^\d+\.\d+\.\d+(\.\d+)?$")
+        self.assertRegex(server.VERSION, r"^\d+(?:\.\d+){2,4}$")
 
     def test_changelog_starts_with_the_current_version(self):
         info = server.about_info()
@@ -43,7 +43,7 @@ class AboutTestCase(unittest.TestCase):
 
     def test_changelog_entries_are_well_formed(self):
         for release in server.about_info()["changes"]:
-            self.assertRegex(release["version"], r"^\d+\.\d+\.\d+(\.\d+)?$")
+            self.assertRegex(release["version"], r"^\d+(?:\.\d+){2,4}$")
             self.assertRegex(release["date"], r"^\d{4}-\d{2}-\d{2}$")
             self.assertIsInstance(release["items"], list)
             self.assertTrue(release["items"])
