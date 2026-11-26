@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import hashlib
 import os
 import subprocess
 import sys
@@ -81,12 +83,19 @@ def create(target: str = "desktop") -> dict:
     launch = paths.DESKTOP_EXE or START_BAT
     escaped_target = str(launch.resolve()).replace("'", "''")
     escaped_work = str(launch.parent.resolve()).replace("'", "''")
+    icon = paths.ICON
+    if paths.DESKTOP_EXE:
+        icon_hash = hashlib.sha256(icon.read_bytes()).hexdigest()[:12]
+        installed_icon = launch.with_name(f"Hub-{icon_hash}.ico")
+        icon = installed_icon if installed_icon.is_file() else launch
+    escaped_icon = str(icon.resolve()).replace("'", "''")
 
     ps_code = (
         f"$ws = New-Object -ComObject WScript.Shell; "
         f"$s = $ws.CreateShortcut('{escaped_lnk}'); "
         f"$s.TargetPath = '{escaped_target}'; "
         f"$s.WorkingDirectory = '{escaped_work}'; "
+        f"$s.IconLocation = '{escaped_icon},0'; "
         f"$s.Description = 'Hub — инструменты для Windows'; "
         f"$s.Save()"
     )
@@ -104,6 +113,10 @@ def create(target: str = "desktop") -> dict:
     except (OSError, subprocess.SubprocessError) as exc:
         raise ShortcutError(f"Не удалось создать ярлык: {exc}") from exc
 
+    notify = ctypes.windll.shell32.SHChangeNotify
+    notify.argtypes = [ctypes.c_long, ctypes.c_uint, ctypes.c_wchar_p, ctypes.c_void_p]
+    notify.restype = None
+    notify(0x2000, 0x0005, str(lnk), None)  # SHCNE_UPDATEITEM, SHCNF_PATHW
     return status()
 
 

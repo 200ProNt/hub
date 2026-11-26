@@ -9,6 +9,7 @@ import threading
 import time
 import webbrowser
 from ctypes import wintypes
+from tools.i18n import tr
 
 WM_DESTROY = 0x0002
 WM_CLOSE = 0x0010
@@ -125,12 +126,12 @@ def _wnd_proc(hwnd, msg, wparam, lparam):
             pt = POINT()
             user32.GetCursorPos(ctypes.byref(pt))
             hmenu = user32.CreatePopupMenu()
-            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_OPEN, "Открыть Hub")
-            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_NOTES, "Быстрая заметка")
-            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_MONITOR, "Мониторинг ПК")
-            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_DROP, "Обмен с телефоном (QR-Drop)")
+            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_OPEN, tr("Open Hub", "Открыть Hub"))
+            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_NOTES, tr("Quick note", "Быстрая заметка"))
+            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_MONITOR, tr("PC Monitor", "Мониторинг ПК"))
+            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_DROP, tr("Phone Transfer (QR-Drop)", "Обмен с телефоном (QR-Drop)"))
             user32.AppendMenuW(hmenu, MF_SEPARATOR, 0, None)
-            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_EXIT, "Закрыть Hub")
+            user32.AppendMenuW(hmenu, MF_STRING, ID_MENU_EXIT, tr("Exit Hub", "Закрыть Hub"))
 
             user32.SetForegroundWindow(hwnd)
             cmd = user32.TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | 0x0100, pt.x, pt.y, 0, hwnd, None)

@@ -21,11 +21,16 @@ INSTALLER_NAME = "Hub-Setup-Windows-x64.exe"
 MAX_INSTALLER_SIZE = 256 * 1024 * 1024
 _ASSET_HOSTS = frozenset(("release-assets.githubusercontent.com", "objects.githubusercontent.com"))
 _VERSION = re.compile(r"[0-9]{1,6}(?:\.[0-9]{1,6}){2,4}")
-_VERIFY_ERROR = "Установщик не прошёл проверку размера или SHA-256."
+_VERIFY_ERROR = (
+    "Установщик не прошёл проверку размера или SHA-256.",
+    "The installer failed its file size or SHA-256 check.",
+)
 
 
 class UpdateError(RuntimeError):
-    pass
+    def __init__(self, russian, english=None):
+        super().__init__(russian)
+        self.english = english or russian
 
 
 @dataclass(frozen=True)
@@ -36,11 +41,11 @@ class Release:
 
     def __post_init__(self):
         if not _VERSION.fullmatch(self.version):
-            raise UpdateError("Тег релиза Hub имеет неверный формат.")
+            raise UpdateError("Тег релиза Hub имеет неверный формат.", "The Hub release tag has an invalid format.")
         if type(self.size) is not int or not 0 < self.size <= MAX_INSTALLER_SIZE:
-            raise UpdateError("GitHub указал недопустимый размер установщика Hub.")
+            raise UpdateError("GitHub указал недопустимый размер установщика Hub.", "GitHub reported an invalid installer size.")
         if not re.fullmatch(r"[a-f0-9]{64}", self.sha256):
-            raise UpdateError("GitHub не предоставил SHA-256 установщика Hub.")
+            raise UpdateError("GitHub не предоставил SHA-256 установщика Hub.", "GitHub did not provide the installer's SHA-256.")
 
     @property
     def url(self):
@@ -59,7 +64,7 @@ class _Redirects(HTTPRedirectHandler):
         target = urlsplit(newurl)
         if target.scheme != "https" or target.netloc not in self.allowed_hosts:
             fp.close()
-            raise UpdateError("GitHub перенаправил запрос на неожиданный адрес.")
+            raise UpdateError("GitHub перенаправил запрос на неожиданный адрес.", "GitHub redirected the request to an unexpected address.")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -71,7 +76,7 @@ def _get(url, accept, allowed_hosts=()):
 
 def _version_key(version):
     if not isinstance(version, str) or not _VERSION.fullmatch(version):
-        raise UpdateError("Версия Hub имеет неверный формат.")
+        raise UpdateError("Версия Hub имеет неверный формат.", "The Hub version has an invalid format.")
     parts = tuple(map(int, version.split(".")))
     return parts + (0,) * (5 - len(parts))
 
@@ -84,20 +89,23 @@ def check(current_version):
         with _get(API_URL, "application/vnd.github+json") as response:
             body = response.read(max_metadata + 1)
         if len(body) > max_metadata:
-            raise UpdateError("Ответ GitHub слишком большой.")
+            raise UpdateError("Ответ GitHub слишком большой.", "The GitHub response was too large.")
         data = json.loads(body)
     except (OSError, HTTPException) as error:
-        raise UpdateError("Не удалось связаться с GitHub. Проверь подключение и попробуй ещё раз.") from error
+        raise UpdateError(
+            "Не удалось связаться с GitHub. Проверь подключение и попробуй ещё раз.",
+            "Could not reach GitHub. Check your connection and try again.",
+        ) from error
     except (ValueError, RecursionError) as error:
-        raise UpdateError("GitHub вернул некорректный ответ.") from error
+        raise UpdateError("GitHub вернул некорректный ответ.", "GitHub returned an invalid response.") from error
 
     if not isinstance(data, dict) or any(type(data.get(key)) is not bool for key in ("draft", "prerelease")):
-        raise UpdateError("GitHub вернул некорректный ответ.")
+        raise UpdateError("GitHub вернул некорректный ответ.", "GitHub returned an invalid response.")
     if data["draft"] or data["prerelease"]:
         return None
     tag = data.get("tag_name")
     if not isinstance(tag, str) or not tag.startswith("v"):
-        raise UpdateError("Тег релиза Hub имеет неверный формат.")
+        raise UpdateError("Тег релиза Hub имеет неверный формат.", "The Hub release tag has an invalid format.")
     if _version_key(tag[1:]) <= installed:
         return None
 
@@ -107,14 +115,17 @@ def check(current_version):
         if isinstance(asset, dict) and asset.get("name") == INSTALLER_NAME
     ] if isinstance(assets, list) else []
     if len(matches) != 1 or matches[0].get("state") != "uploaded":
-        raise UpdateError("В релизе GitHub нет установщика Hub для Windows x64.")
+        raise UpdateError("В релизе GitHub нет установщика Hub для Windows x64.", "The GitHub release has no Hub installer for Windows x64.")
     asset = matches[0]
     digest = asset.get("digest")
     if not isinstance(digest, str) or not digest.startswith("sha256:"):
-        raise UpdateError("GitHub не предоставил SHA-256 установщика Hub.")
+        raise UpdateError("GitHub не предоставил SHA-256 установщика Hub.", "GitHub did not provide the installer's SHA-256.")
     release = Release(tag[1:], asset.get("size"), digest.removeprefix("sha256:"))
     if data.get("html_url") != release.url or asset.get("browser_download_url") != release.installer_url:
-        raise UpdateError("Адрес релиза или установщика не соответствует версии Hub.")
+        raise UpdateError(
+            "Адрес релиза или установщика не соответствует версии Hub.",
+            "The release or installer address does not match the Hub version.",
+        )
     return release
 
 
@@ -151,19 +162,22 @@ def install(release):
             while chunk := response.read(min(1024 * 1024, release.size - received + 1)):
                 received += len(chunk)
                 if received > release.size:
-                    raise UpdateError(_VERIFY_ERROR)
+                    raise UpdateError(*_VERIFY_ERROR)
                 digest.update(chunk)
                 output.write(chunk)
         if received != release.size or digest.hexdigest() != release.sha256:
-            raise UpdateError(_VERIFY_ERROR)
+            raise UpdateError(*_VERIFY_ERROR)
         installer = partial.rename(directory / INSTALLER_NAME)
         try:
             _launch(installer)
         except OSError as error:
-            raise UpdateError("Не удалось запустить установщик Hub.") from error
+            raise UpdateError("Не удалось запустить установщик Hub.", "Could not start the Hub installer.") from error
         launched = True
     except (OSError, HTTPException, ValueError) as error:
-        raise UpdateError("Не удалось скачать и сохранить установщик Hub. Попробуй открыть релиз на GitHub.") from error
+        raise UpdateError(
+            "Не удалось скачать и сохранить установщик Hub. Попробуй открыть релиз на GitHub.",
+            "Could not download and save the Hub installer. Try opening the release on GitHub.",
+        ) from error
     finally:
         # shortcut: файл остаётся в %TEMP% после запуска, удалять после выхода мастера при необходимости
         if directory is not None and not launched:

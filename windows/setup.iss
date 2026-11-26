@@ -14,7 +14,7 @@ PrivilegesRequired=lowest
 MinVersion=10.0.22000
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\Hub.exe
+UninstallDisplayIcon={app}\{#HubIconName}
 SetupIconFile={#HubIcon}
 OutputBaseFilename=Hub-Setup-Windows-x64
 Compression=lzma2
@@ -31,18 +31,50 @@ Name: "migrate"; Description: "Перенести данные из браузе
 
 [Files]
 Source: "{#HubExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#HubIcon}"; DestDir: "{app}"; DestName: "{#HubIconName}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Hub"; Filename: "{app}\Hub.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\Hub"; Filename: "{app}\Hub.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\Hub"; Filename: "{app}\Hub.exe"; WorkingDir: "{app}"; IconFilename: "{app}\{#HubIconName}"
+Name: "{autodesktop}\Hub"; Filename: "{app}\Hub.exe"; WorkingDir: "{app}"; IconFilename: "{app}\{#HubIconName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Hub.exe"; WorkingDir: "{app}"; Description: "Запустить Hub"; Flags: nowait postinstall skipifsilent; Check: CanLaunch
 
 [Code]
+const
+  SHCNE_UPDATEITEM = $00002000;
+  SHCNF_PATHW = $0005;
+
 var
   MigrationPage: TInputDirWizardPage;
   MigrationFailed: Boolean;
+
+procedure SHChangeNotify(EventId, Flags: Integer; Item: string; OtherItem: Integer);
+  external 'SHChangeNotify@shell32.dll stdcall';
+
+procedure RefreshDesktopIcon;
+var
+  LinkPath: String;
+  Shell, Shortcut: Variant;
+begin
+  LinkPath := ExpandConstant('{autodesktop}\Hub.lnk');
+  if not FileExists(LinkPath) then
+    Exit;
+  if not WizardIsTaskSelected('desktopicon') then begin
+    try
+      Shell := CreateOleObject('WScript.Shell');
+      Shortcut := Shell.CreateShortcut(LinkPath);
+      if CompareText(Shortcut.TargetPath, ExpandConstant('{app}\Hub.exe')) <> 0 then
+        Exit;
+      Shortcut.IconLocation := ExpandConstant('{app}\{#HubIconName},0');
+      Shortcut.Save;
+    except
+      Log('Could not refresh Hub desktop shortcut: ' + GetExceptionMessage);
+      Exit;
+    end;
+  end;
+  SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, LinkPath, 0);
+end;
 
 function CanMigrate: Boolean;
 begin
@@ -85,7 +117,12 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ExitCode: Integer;
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('migrate') then begin
+  if CurStep <> ssPostInstall then
+    Exit;
+  SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, ExpandConstant('{app}\Hub.exe'), 0);
+  SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, ExpandConstant('{autoprograms}\Hub.lnk'), 0);
+  RefreshDesktopIcon;
+  if WizardIsTaskSelected('migrate') then begin
     MigrationFailed := not Exec(ExpandConstant('{app}\Hub.exe'),
       '--migrate-only --migrate ' + AddQuotes(RemoveBackslashUnlessRoot(MigrationPage.Values[0])),
       '', SW_HIDE, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0);

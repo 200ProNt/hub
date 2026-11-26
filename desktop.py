@@ -11,6 +11,7 @@ from ctypes import wintypes
 from pathlib import Path
 
 from tools import paths, preferences
+from tools.i18n import set_language, tr
 
 
 def run(background, activate_event, kernel):
@@ -33,7 +34,8 @@ def run(background, activate_event, kernel):
         except OSError:
             continue
     if http is None:
-        raise RuntimeError("Порты Hub заняты. Закрой старую версию и попробуй снова.")
+        raise RuntimeError(tr("Hub's ports are in use. Close the older copy and try again.",
+                              "Порты Hub заняты. Закрой старую версию и попробуй снова."))
 
     state = preferences.read()
     start_hidden = background and state.get("tray") != "off"
@@ -93,6 +95,7 @@ def main():
         parser.error("--migrate-only requires --migrate")
     profile = (Path(os.environ["LOCALAPPDATA"]) / "Hub").resolve()
     paths.DATA_DIR = profile / "data"
+    set_language(preferences.read().get("hub-language"))
     if getattr(sys, "frozen", False):
         paths.DESKTOP_EXE = Path(sys.executable)
 
@@ -110,7 +113,8 @@ def main():
         if status == 183:  # ERROR_ALREADY_EXISTS
             kernel.SetEvent(event)
             if args.migrate:
-                raise RuntimeError("Закрой настольный Hub через трей и повтори перенос.")
+                raise RuntimeError(tr("Close Hub from its tray menu and try again.",
+                                      "Закрой настольный Hub через трей и повтори перенос."))
             return
         profile.mkdir(parents=True, exist_ok=True)
         if args.migrate:
@@ -134,5 +138,5 @@ if __name__ == "__main__":
         import traceback
 
         traceback.print_exc()
-        ctypes.windll.user32.MessageBoxW(None, str(error), "Hub — ошибка запуска", 0x10)
+        ctypes.windll.user32.MessageBoxW(None, str(error), tr("Hub startup error", "Hub — ошибка запуска"), 0x10)
         sys.exit(1)

@@ -30,6 +30,7 @@ from System.Windows.Media.Imaging import BitmapFrame
 from System.Windows.Threading import DispatcherTimer
 
 from tools import paths, preferences, tray
+from tools.i18n import set_language, tr
 from tools.registry import TOOLS
 
 from .backdrop import acrylic
@@ -37,11 +38,45 @@ from .palettes import ACCENTS, RADII, palette
 from .widgets import Page, glyph, label, make
 
 TITLES = {item["id"]: item for item in TOOLS}
+ENGLISH_TITLES = {
+    "home": ("Home", "Daily overview and quick actions"),
+    "clipboard": ("Clipboard", "Find and reuse copied text"),
+    "notes": ("Notes", "Quick notes on this computer"),
+    "qrdrop": ("Phone Transfer", "Send files and text over Wi-Fi with a QR code"),
+    "sorter": ("File Sorter", "Organize a folder by file type"),
+    "renamer": ("Batch Rename", "Rename multiple files with rules"),
+    "dupes": ("Duplicate Files", "Find files with identical contents"),
+    "bigfiles": ("Large Files", "See what takes up the most space"),
+    "diskmap": ("Disk Map", "See what takes up space in a folder or drive"),
+    "compare": ("Compare Folders", "Find new, missing, and changed files"),
+    "images": ("Image Tools", "Convert, compress, and resize images"),
+    "checksum": ("Hashes and Passwords", "Verify file checksums and generate passwords"),
+    "cleanup": ("Cleanup", "Find old files and empty folders"),
+    "trash": ("Trash", "Restore files moved to Hub Trash"),
+    "monitor": ("PC Monitor", "Track system and process activity"),
+    "about": ("About", "Version, license, and source code"),
+}
 GROUPS = (
-    ("Рабочее", ("home", "notes", "clipboard", "qrdrop")),
-    ("Файлы", ("sorter", "renamer", "dupes", "bigfiles", "diskmap", "compare", "images", "checksum", "cleanup")),
-    ("Система", ("trash", "monitor", "about")),
+    (("Workspace", "Рабочее"), ("home", "notes", "clipboard", "qrdrop")),
+    (("Files", "Файлы"), ("sorter", "renamer", "dupes", "bigfiles", "diskmap", "compare", "images", "checksum", "cleanup")),
+    (("System", "Система"), ("trash", "monitor", "about")),
 )
+ACCENT_NAMES = {
+    "graphite": ("Graphite", "Графит"),
+    "ocean": ("Steel blue", "Стальной синий"),
+    "emerald": ("Eucalyptus", "Эвкалипт"),
+    "lavender": ("Lavender", "Лаванда"),
+    "sand": ("Sand", "Песочный"),
+    "sunset": ("Terracotta", "Терракота"),
+    "pink": ("Dusty rose", "Пыльная роза"),
+}
+
+
+def tool_title(route):
+    entry = TITLES[route]
+    return tr(ENGLISH_TITLES[route], (entry["name"], entry["hint"]))
+
+
 class HubWindow:
     def __init__(self, port, version, default_folder, release=None):
         self.url = f"http://127.0.0.1:{port}"
@@ -54,6 +89,8 @@ class HubWindow:
         self.navigation = {}
         self.nav_labels = []
         self.settings = preferences.read()
+        self.language = self.settings.get("hub-language", "en")
+        set_language(self.language)
         self.release = release
         self.release_overlay = None
         self.release_focus = None
@@ -68,6 +105,9 @@ class HubWindow:
             self.window.Resources["Active" + name] = self.window.FindResource(name)
         self.build_chrome()
         self.apply_theme()
+        self.theme_timer = make(DispatcherTimer, Interval=TimeSpan.FromSeconds(2))
+        self.theme_timer.Tick += self.refresh_system_theme
+        self.theme_timer.Start()
         self.window.SourceInitialized += lambda *_: self.apply_theme()
         self.window.SizeChanged += self.resize
         self.window.PreviewKeyDown += self.keydown
@@ -89,7 +129,7 @@ class HubWindow:
 
     def notice(self, text):
         status = self.widget("Status")
-        message = str(text or "Готово")
+        message = str(text or tr("Ready", "Готово"))
         if status.Text != message:
             status.Text = message
             if self.motion_enabled():
@@ -97,10 +137,19 @@ class HubWindow:
 
     def apply_theme(self):
         self.settings = preferences.read()
+        language = self.settings.get("hub-language", "en")
+        relabel = self.language != language
+        if relabel:
+            self.language = language
+            set_language(language)
+            self.build_chrome()
         style = self.settings.get("hub-style", "glass")
         if style not in RADII:
             style = "glass"
-        theme = "light" if self.settings.get("hub-theme") == "light" else "dark"
+        theme = self.settings.get("hub-theme")
+        if theme not in ("dark", "light"):
+            theme = preferences.system_theme()
+        self.theme = theme
         dark = theme == "dark"
         accent = SystemParameters.WindowGlassColor
         colors = palette(style, theme, self.settings.get("hub-accent"), f"#{accent.R:02X}{accent.G:02X}{accent.B:02X}")
@@ -140,6 +189,12 @@ class HubWindow:
         self.widget("Scroller").Padding = Thickness(16, 8, 16, 12) if material else Thickness(5, 2, 10, 5)
         self.resize()
         self.hide_reflection()
+        if relabel and self.active:
+            self.go(self.active)
+
+    def refresh_system_theme(self, *_):
+        if self.settings.get("hub-theme", "auto") == "auto" and preferences.system_theme() != self.theme:
+            self.apply_theme()
 
     def hide_reflection(self):
         reflection = self.widget("Reflection")
@@ -214,6 +269,14 @@ class HubWindow:
         return button
 
     def build_chrome(self):
+        self.nav_labels.clear()
+        for name in ("Brand", "WindowActions", "Nav", "NavFoot", "TopBar"):
+            self.widget(name).Children.Clear()
+        search_name = tr("Search Hub", "Поиск по Hub")
+        self.widget("SearchTitle").Text = search_name
+        AutomationProperties.SetName(self.widget("SearchInput"), search_name)
+        self.widget("SearchHint").Text = tr("↑ ↓  Select      Enter  Open      Esc  Close",
+                                            "↑ ↓  Выбрать      Enter  Открыть      Esc  Закрыть")
         brand = self.widget("Brand")
         tile = BitmapFrame.Create(Uri(paths.ICON.with_suffix(".png").as_uri()))
         letter = BitmapFrame.Create(Uri(paths.ICON.with_name("hub-icon-letter.png").as_uri()))
@@ -233,9 +296,9 @@ class HubWindow:
         word.VerticalAlignment = VerticalAlignment.Center
         brand.Children.Add(word)
         for title, name, callback in (
-            ("Свернуть", "minimize", lambda: setattr(self.window, "WindowState", WindowState.Minimized)),
-            ("Развернуть или восстановить", "maximize", self.maximize),
-            ("Закрыть окно", "close", self.window.Close),
+            (tr("Minimize", "Свернуть"), "minimize", lambda: setattr(self.window, "WindowState", WindowState.Minimized)),
+            (tr("Maximize or restore", "Развернуть или восстановить"), "maximize", self.maximize),
+            (tr("Close window", "Закрыть окно"), "close", self.window.Close),
         ):
             button = self.button(title, callback, "Navigation", name)
             button.Width = 38
@@ -247,24 +310,24 @@ class HubWindow:
 
         nav = self.widget("Nav")
         for heading, tool_ids in GROUPS:
-            name = label(heading, 11, True)
+            name = label(tr(*heading), 11, True)
             name.Margin = Thickness(9, 9, 0, 4)
             self.nav_labels.append(name)
             nav.Children.Add(name)
             for tool_id in tool_ids:
                 tool = TITLES[tool_id]
-                button = self.nav_button(tool["name"], tool["icon"], lambda target=tool_id: self.go(target))
+                button = self.nav_button(tool_title(tool_id)[0], tool["icon"], lambda target=tool_id: self.go(target))
                 self.navigation[tool_id] = button
                 nav.Children.Add(button)
-        settings = self.nav_button("Настройки", "settings", lambda: self.go("settings"))
+        settings = self.nav_button(tr("Settings", "Настройки"), "settings", lambda: self.go("settings"))
         self.navigation["settings"] = settings
         self.widget("NavFoot").Children.Add(settings)
 
-        search = self.search_button = self.button("Поиск по Hub", self.open_search)
+        search = self.search_button = self.button(search_name, self.open_search)
         AutomationProperties.SetAcceleratorKey(search, "Ctrl+K")
         row = make(StackPanel, Orientation=Orientation.Horizontal)
         row.Children.Add(glyph("search", 16))
-        text = label("Поиск по Hub")
+        text = label(search_name)
         text.Margin = Thickness(8, 0, 14, 0)
         row.Children.Add(text)
         row.Children.Add(label("Ctrl+K", 12, True))
@@ -308,6 +371,7 @@ class HubWindow:
             self.window.Hide()
         else:
             self.exiting = True
+            self.theme_timer.Stop()
             if self.current:
                 for callback in self.current.leave:
                     callback()
@@ -329,7 +393,13 @@ class HubWindow:
     def animate(self, element, kind="page"):
         if not self.motion_enabled():
             return
-        if kind in ("press", "sheet"):
+        if kind == "chart":
+            scale = ScaleTransform(1, 1)
+            element.RenderTransformOrigin = Point(.5, .5)
+            element.RenderTransform = scale
+            self._transition(scale, ScaleTransform.ScaleXProperty, .88, 1, 340)
+            self._transition(scale, ScaleTransform.ScaleYProperty, .08, 1, 480)
+        elif kind in ("press", "sheet"):
             scale = ScaleTransform(1, 1)
             element.RenderTransformOrigin = Point(.5, .5 if kind == "press" else 0)
             element.RenderTransform = scale
@@ -380,17 +450,18 @@ class HubWindow:
         card.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
         KeyboardNavigation.SetTabNavigation(card, KeyboardNavigationMode.Cycle)
         content = StackPanel()
-        header = label(f"Что нового в Hub {self.version}", 24)
+        header = label(tr(f"What's new in Hub {self.version}", f"Что нового в Hub {self.version}"), 24)
         header.FontWeight = FontWeights.SemiBold
         content.Children.Add(header)
-        heading = label(self.release.get("title", "Обновление Hub"), 14, True)
+        heading = label(tr(self.release.get("title_en", "Hub update"),
+                           self.release.get("title", "Обновление Hub")), 14, True)
         heading.Margin = Thickness(0, 5, 0, 10)
         content.Children.Add(heading)
-        for item in self.release["items"]:
+        for item in tr(self.release.get("items_en", self.release["items"]), self.release["items"]):
             row = label(item, 14)
             row.Margin = Thickness(0, 5, 0, 5)
             content.Children.Add(row)
-        done = self.button("Готово", self.close_release, "Primary")
+        done = self.button(tr("Done", "Готово"), self.close_release, "Primary")
         done.HorizontalAlignment = HorizontalAlignment.Right
         done.Margin = Thickness(0, 12, 0, 0)
         content.Children.Add(done)
@@ -432,11 +503,12 @@ class HubWindow:
         host = self.widget("ContentPanel")
         host.Children.Clear()
         if target == "home":
-            title, hint = "Рабочий стол", ""
+            title, hint = tool_title("home")[0], ""
         elif target == "settings":
-            title, hint = "Настройки", "Оформление, клавиатура и системная интеграция"
+            title, hint = tr("Settings", "Настройки"), tr("Appearance, language, and Windows integration",
+                                                         "Внешний вид, язык и интеграция с Windows")
         else:
-            title, hint = TITLES[target]["name"], TITLES[target]["hint"]
+            title, hint = tool_title(target)
         heading = label(title, 31)
         if self.settings.get("hub-style") == "material":
             heading.FontSize = 36
@@ -538,18 +610,20 @@ class HubWindow:
         def show(data):
             if self.widget("Overlay").Visibility != Visibility.Visible or query != self.widget("SearchInput").Text.strip():
                 return
-            rows = [(tool["id"], tool["name"], tool["hint"]) for tool in data["tools"]]
+            matches = {tool["id"] for tool in data.get("tools", [])}
+            rows = [(route, *tool_title(route)) for route in TITLES
+                    if route in matches or query.casefold() in " ".join(tool_title(route)).casefold()]
             rows.extend(("notes", item["title"], item["snippet"]) for item in data.get("notes", []))
-            rows.extend(("clipboard", "В буфере", item["snippet"]) for item in data.get("clipboard", []))
-            if not query or query.casefold() in "настройки тема прозрачность настройки windows":
-                rows.append(("settings", "Настройки", "Тема и прозрачность"))
+            rows.extend(("clipboard", tr("Clipboard entry", "В буфере"), item["snippet"]) for item in data.get("clipboard", []))
+            if query.casefold() in "settings appearance theme language windows настройки тема язык прозрачность":
+                rows.append(("settings", tr("Settings", "Настройки"), tr("Appearance and language", "Внешний вид и язык")))
             self.search_items = rows
             box = self.widget("SearchResults")
             Page.show_rows(box, rows, lambda row: row[1] + "\n" + row[2])
             if rows:
                 box.SelectedIndex = 0
             else:
-                box.Items.Add("Совпадений нет")
+                box.Items.Add(tr("No matches", "Совпадений нет"))
 
         if not query:
             show({"tools": TOOLS})
@@ -565,17 +639,33 @@ class HubWindow:
             self.go(route, query)
 
     def mount_settings(self, page):
-        page.section("Внешний вид")
+        page.section(tr("Appearance", "Внешний вид"))
+        flags = [make(Image, Width=23, Height=15,
+                      Source=BitmapFrame.Create(Uri((Path(__file__).parent / "flags" / f"{code}.png").as_uri())))
+                 for code in ("en", "ru")]
+        language = page.choice(tr("Language", "Язык"), ("English", "Русский"),
+                               int(self.language == "ru"), previews=flags)
         styles = ("glass", "material")
-        preset = page.choice("Оформление", ("Liquid Glass", "Material You"), int(self.settings.get("hub-style") == "material"))
-        theme = page.choice("Режим", ("Тёмный", "Светлый"), int(self.settings.get("hub-theme") == "light"))
-        accent_values = ("", "ocean", "emerald", "sunset", "pink")
+        preset = page.choice(tr("Style", "Оформление"), ("Liquid Glass", "Material You (beta)"),
+                             int(self.settings.get("hub-style") == "material"))
+        modes = ("auto", "dark", "light")
+        mode = self.settings.get("hub-theme", "auto")
+        theme = page.choice(tr("Theme mode", "Режим темы"),
+                            (tr("Auto (Windows)", "Авто (Windows)"), tr("Dark", "Тёмный"), tr("Light", "Светлый")),
+                            modes.index(mode) if mode in modes else 0)
+        accent_values = ("", *ACCENTS)
         current_accent = self.settings.get("hub-accent", "")
-        accent = page.choice("Оттенок палитры", ("По умолчанию", "Синий", "Изумрудный", "Тёплый", "Розовый"),
-                             accent_values.index(current_accent) if current_accent in accent_values else 0)
-        glass = page.check("Просвечивание через окно", self.settings.get("desktop-glass", "on") == "on")
-        motion = page.check("Плавные переходы", self.settings.get("hub-motion", "on") == "on")
-        sound = page.check("Звук при сохранении заметки", self.settings.get("hub-sound", "on") == "on")
+        converter = BrushConverter()
+        swatches = [make(Border, Width=16, Height=16, CornerRadius=CornerRadius(4),
+                         Background=converter.ConvertFromString(color))
+                    for color in ("#7B8593", *(pair[1] for pair in ACCENTS.values()))]
+        accent = page.choice(tr("Palette accent", "Оттенок палитры"),
+                             (tr("Default", "По умолчанию"), *(tr(*ACCENT_NAMES[key]) for key in ACCENTS)),
+                             accent_values.index(current_accent) if current_accent in accent_values else 0,
+                             previews=swatches)
+        glass = page.check(tr("Translucent window", "Просвечивание через окно"), self.settings.get("desktop-glass", "on") == "on")
+        motion = page.check(tr("Smooth transitions", "Плавные переходы"), self.settings.get("hub-motion", "on") == "on")
+        sound = page.check(tr("Play sound when saving a note", "Звук при сохранении заметки"), self.settings.get("hub-sound", "on") == "on")
         glass.IsEnabled = preset.SelectedIndex == 0
 
         def change_style(*_):
@@ -585,9 +675,11 @@ class HubWindow:
                 self.go("settings")
 
         preset.SelectionChanged += change_style
+        language.SelectionChanged += lambda *_: language.SelectedIndex >= 0 and self.change_settings(
+            **{"hub-language": ("en", "ru")[language.SelectedIndex]})
         if self.window.IsKeyboardFocusWithin:
             preset.Focus()
-        theme.SelectionChanged += lambda *_: theme.SelectedIndex >= 0 and self.change_settings(**{"hub-theme": ("dark", "light")[theme.SelectedIndex]})
+        theme.SelectionChanged += lambda *_: theme.SelectedIndex >= 0 and self.change_settings(**{"hub-theme": modes[theme.SelectedIndex]})
         accent.SelectionChanged += lambda *_: accent.SelectedIndex >= 0 and self.change_settings(**{"hub-accent": accent_values[accent.SelectedIndex]})
         for control, key in ((glass, "desktop-glass"), (motion, "hub-motion"), (sound, "hub-sound")):
             def changed(sender, _, setting=key):
@@ -597,9 +689,9 @@ class HubWindow:
 
         page.section("Windows")
         current = tray.status()
-        tray_check = page.check("Значок в трее", self.settings.get("tray", "on") == "on")
-        hotkeys = page.text(", ".join(current["hotkeys"]) or "Глобальная клавиша пока недоступна", muted=True)
-        auto = page.check("Запускать Hub вместе с Windows")
+        tray_check = page.check(tr("Show tray icon", "Значок в трее"), self.settings.get("tray", "on") == "on")
+        hotkeys = page.text(", ".join(current["hotkeys"]) or tr("Global shortcut unavailable", "Глобальная клавиша пока недоступна"), muted=True)
+        auto = page.check(tr("Start Hub with Windows", "Запускать Hub вместе с Windows"))
         loaded = False
 
         def loaded_autostart(result):
@@ -615,7 +707,7 @@ class HubWindow:
         def toggle_tray(*_):
             enabled = bool(tray_check.IsChecked)
             page.run(lambda: page.post("/api/tray/toggle", {"enabled": enabled}),
-                     lambda result: setattr(hotkeys, "Text", ", ".join(result["hotkeys"]) or "Горячая клавиша недоступна"))
+                     lambda result: setattr(hotkeys, "Text", ", ".join(result["hotkeys"]) or tr("Shortcut unavailable", "Горячая клавиша недоступна")))
 
         tray_check.Checked += toggle_tray
         tray_check.Unchecked += toggle_tray
@@ -624,36 +716,36 @@ class HubWindow:
         page.run(lambda: page.get("/api/autostart"), loaded_autostart, message="")
 
         def shortcut(target):
-            page.run(lambda: page.post("/api/shortcuts/create", {"target": target}), lambda _: page.notice("Ярлык создан"))
+            page.run(lambda: page.post("/api/shortcuts/create", {"target": target}), lambda _: page.notice(tr("Shortcut created", "Ярлык создан")))
 
-        page.actions(("Ярлык на рабочем столе", lambda: shortcut("desktop")),
-                     ("Ярлык в меню «Пуск»", lambda: shortcut("start_menu")))
-        page.section("Данные")
-        page.actions(("Сохранить резервную копию", lambda: page.download("/api/system/backup", "hub-backup.zip")),
-                     ("Перенести настройки из браузера", lambda: page.open_url(self.url + "/transfer.html")),
-                     ("Импорт настроек из файла", lambda: self.import_settings(page)))
+        page.actions((tr("Create desktop shortcut", "Ярлык на рабочем столе"), lambda: shortcut("desktop")),
+                     (tr("Create Start menu shortcut", "Ярлык в меню «Пуск»"), lambda: shortcut("start_menu")))
+        page.section(tr("Data", "Данные"))
+        page.actions((tr("Save a backup", "Сохранить резервную копию"), lambda: page.download("/api/system/backup", "hub-backup.zip")),
+                     (tr("Transfer browser settings", "Перенести настройки из браузера"), lambda: page.open_url(self.url + "/transfer.html")),
+                     (tr("Import settings from a file", "Импорт настроек из файла"), lambda: self.import_settings(page)))
         from .update_ui import mount
         mount(page)
-        page.actions(("Что нового в этой версии", self.show_release))
+        page.actions((tr("What's new in this version", "Что нового в этой версии"), self.show_release))
 
     def import_settings(self, page):
         import json
         from Microsoft.Win32 import OpenFileDialog
 
-        dialog = make(OpenFileDialog, Filter="Настройки Hub (*.json)|*.json")
+        dialog = make(OpenFileDialog, Filter=tr("Hub settings (*.json)|*.json", "Настройки Hub (*.json)|*.json"))
         if dialog.ShowDialog(self.window):
             filename = Path(dialog.FileName)
             if filename.stat().st_size > 16_384:
-                raise ValueError("Файл настроек слишком большой")
+                raise ValueError(tr("Settings file is too large", "Файл настроек слишком большой"))
             settings = json.loads(filename.read_text(encoding="utf-8-sig"))
             if not isinstance(settings, dict):
-                raise ValueError("Файл должен содержать настройки Hub")
+                raise ValueError(tr("The file must contain Hub settings", "Файл должен содержать настройки Hub"))
             allowed = {key: value for key, value in settings.items() if key.startswith("hub-") and key in preferences.OPTIONS}
             if not allowed:
-                raise ValueError("Файл должен содержать настройки Hub")
+                raise ValueError(tr("The file must contain Hub settings", "Файл должен содержать настройки Hub"))
             self.change_settings(**allowed)
             self.go("settings")
-            self.notice("Настройки перенесены")
+            self.notice(tr("Settings imported", "Настройки перенесены"))
 
     def saved(self):
         if self.settings.get("hub-sound", "on") == "on":

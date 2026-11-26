@@ -20,8 +20,13 @@ PALETTES = {
 
 }
 ACCENTS = {
-    "emerald": ("#A4F0B6", "#176247"), "ocean": ("#A8D4FF", "#145A9C"),
-    "sunset": ("#FFD1A4", "#8D421A"), "pink": ("#FFC0DE", "#8D2E62"),
+    "graphite": ("#C4CCD5", "#475362"),
+    "ocean": ("#A9C9EA", "#345F87"),
+    "emerald": ("#A6D4C0", "#316551"),
+    "lavender": ("#D2BBE8", "#715287"),
+    "sand": ("#DFCAAA", "#795B35"),
+    "sunset": ("#E9B7A2", "#8C4D3B"),
+    "pink": ("#E4B8CD", "#834D69"),
 }
 MATERIAL_CONTROL_RADIUS = 8
 RADII = {"glass": (16, 12, 22, 10), "material": (MATERIAL_CONTROL_RADIUS, 6, 12, 6)}

@@ -20,6 +20,7 @@ from System.Windows.Media.Imaging import BitmapCacheOption, BitmapImage, BitmapF
 from System.Windows.Threading import DispatcherTimer
 
 from tools import checksum, images as image_tools
+from tools.i18n import tr
 
 from .widgets import label, make
 
@@ -78,9 +79,10 @@ def _slider(page, label, low, high, initial, suffix=""):
 
 
 def _size(value):
-    for unit in ("Б", "КБ", "МБ", "ГБ", "ТБ"):
-        if value < 1024 or unit == "ТБ":
-            return f"{value:.2f}".rstrip("0").rstrip(".").replace(".", ",") + f" {unit}"
+    units = tr(("B", "KB", "MB", "GB", "TB"), ("Б", "КБ", "МБ", "ГБ", "ТБ"))
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.2f}".rstrip("0").rstrip(".").replace(".", tr(".", ",")) + f" {unit}"
         value /= 1024
 
 
@@ -109,33 +111,47 @@ def _invalid_windows_name(name):
 
 
 def _renamer(page):
-    folder = page.folder("Папка с файлами", page.default_folder)
-    pattern = page.field("Маски файлов через запятую", "*")
+    folder = page.folder(tr("Folder containing files", "Папка с файлами"), page.default_folder)
+    pattern = page.field(tr("File patterns, separated by commas", "Маски файлов через запятую"), "*")
     modes = ("replace", "number", "affix", "case", "translit", "date")
-    mode = page.choice("Правило переименования", (
-        "Замена текста", "Нумерация", "Префикс и суффикс", "Регистр букв", "Транслитерация", "Добавить дату"
+    mode = page.choice(tr("Rename rule", "Правило переименования"), (
+        tr("Replace text", "Замена текста"),
+        tr("Numbering", "Нумерация"),
+        tr("Prefix and suffix", "Префикс и суффикс"),
+        tr("Letter case", "Регистр букв"),
+        tr("Transliterate", "Транслитерация"),
+        tr("Add date", "Добавить дату"),
     ))
     with _group(page) as replace_panel:
-        find = page.field("Что найти")
-        replacement = page.field("На что заменить")
-        regex = page.check("Регулярное выражение")
-        case_sensitive = page.check("Учитывать регистр")
+        find = page.field(tr("Find text", "Что найти"))
+        replacement = page.field(tr("Replace with", "На что заменить"))
+        regex = page.check(tr("Regular expression", "Регулярное выражение"))
+        case_sensitive = page.check(tr("Match case", "Учитывать регистр"))
     with _group(page) as number_panel:
-        number_prefix = page.field("Префикс")
-        start = page.field("Начальный номер", "1")
-        digits = page.field("Количество цифр", "2")
-        step = page.field("Шаг нумерации", "1")
-        keep = page.check("Сохранять исходное имя")
+        number_prefix = page.field(tr("Prefix", "Префикс"))
+        start = page.field(tr("Starting number", "Начальный номер"), "1")
+        digits = page.field(tr("Number of digits", "Количество цифр"), "2")
+        step = page.field(tr("Numbering step", "Шаг нумерации"), "1")
+        keep = page.check(tr("Keep the original name", "Сохранять исходное имя"))
     with _group(page) as affix_panel:
-        prefix = page.field("Префикс")
-        suffix = page.field("Суффикс")
+        prefix = page.field(tr("Prefix", "Префикс"))
+        suffix = page.field(tr("Suffix", "Суффикс"))
     with _group(page) as case_panel:
-        target = page.choice("Регистр", ("строчные", "ЗАГЛАВНЫЕ", "Как в предложении", "Каждое Слово С Заглавной"))
+        target = page.choice(tr("Case", "Регистр"), (
+            tr("lowercase", "строчные"),
+            tr("UPPERCASE", "ЗАГЛАВНЫЕ"),
+            tr("Sentence case", "Как в предложении"),
+            tr("Title Case", "Каждое Слово С Заглавной"),
+        ))
     with _group(page) as translit_panel:
-        page.text("Например, «документ.pdf» станет «dokument.pdf».", muted=True)
+        page.text(tr("For example, “документ.pdf” becomes “dokument.pdf”.", "Например, «документ.pdf» станет «dokument.pdf»."), muted=True)
     with _group(page) as date_panel:
-        date_format = page.choice("Формат даты изменения файла", ("ГГГГ-ММ-ДД", "ГГГГ-ММ-ДД_ЧЧ-ММ"))
-        position = page.choice("Где добавить дату", ("В начале имени", "В конце имени"))
+        date_format = page.choice(tr("File modification date format", "Формат даты изменения файла"), (
+            tr("YYYY-MM-DD", "ГГГГ-ММ-ДД"), tr("YYYY-MM-DD_HH-MM", "ГГГГ-ММ-ДД_ЧЧ-ММ"),
+        ))
+        position = page.choice(tr("Date position", "Где добавить дату"), (
+            tr("Start of filename", "В начале имени"), tr("End of filename", "В конце имени"),
+        ))
     _switch(page, mode, (replace_panel, number_panel, affix_panel, case_panel, translit_panel, date_panel))
 
     source = None
@@ -156,9 +172,15 @@ def _renamer(page):
             try:
                 first, width, stride = int(start.Text), int(digits.Text), int(step.Text)
             except ValueError as error:
-                raise ValueError("Начальный номер, количество цифр и шаг должны быть целыми числами.") from error
+                raise ValueError(tr(
+                    "Starting number, digit count and step must be integers.",
+                    "Начальный номер, количество цифр и шаг должны быть целыми числами.",
+                )) from error
             if first < 0 or not 1 <= width <= 8 or stride < 1:
-                raise ValueError("Номер — от 0, количество цифр — от 1 до 8, шаг — от 1.")
+                raise ValueError(tr(
+                    "Use a starting number of 0 or more, 1–8 digits, and a step of at least 1.",
+                    "Номер — от 0, количество цифр — от 1 до 8, шаг — от 1.",
+                ))
             rule.update(prefix=number_prefix.Text, start=first, digits=width, step=stride, keep_name=bool(keep.IsChecked))
         elif name == "affix":
             rule.update(prefix=prefix.Text, suffix=suffix.Text)
@@ -183,12 +205,21 @@ def _renamer(page):
         items = data["preview"]
         for item in items:
             if item["status"] == "ok" and _invalid_windows_name(item["new_name"]):
-                item.update(status="error", error="Недопустимое имя файла в Windows")
-        states = {"ok": "Готово", "unchanged": "Без изменений", "conflict": "Конфликт", "error": "Ошибка"}
+                item.update(status="error", error=tr("Invalid Windows filename", "Недопустимое имя файла в Windows"))
+        states = {
+            "ok": tr("Ready", "Готово"),
+            "unchanged": tr("Unchanged", "Без изменений"),
+            "conflict": tr("Conflict", "Конфликт"),
+            "error": tr("Error", "Ошибка"),
+        }
         ready = sum(item["status"] == "ok" for item in items)
         errors = sum(item["status"] == "error" for item in items)
-        stats.Text = (f"Всего {data['total']} · готово {ready} · без изменений {data['unchanged_count']}"
-                      f" · конфликтов {data['conflict_count']} · ошибок {errors}")
+        stats.Text = tr(
+            f"Total: {data['total']} · Ready: {ready} · Unchanged: {data['unchanged_count']} "
+            f"· Conflicts: {data['conflict_count']} · Errors: {errors}",
+            f"Всего {data['total']} · готово {ready} · без изменений {data['unchanged_count']} "
+            f"· конфликтов {data['conflict_count']} · ошибок {errors}",
+        )
 
         def describe(item):
             detail = states[item["status"]]
@@ -222,13 +253,13 @@ def _renamer(page):
 
     def rule_changed(*_):
         if source == scope() and files:
-            invalidate("Обновляю предпросмотр…")
+            invalidate(tr("Refreshing preview…", "Обновляю предпросмотр…"))
             schedule()
 
     def scope_changed(*_):
         nonlocal source
         source = None
-        invalidate("Найди файлы в выбранной папке.", clear=True)
+        invalidate(tr("Find files in the selected folder.", "Найди файлы в выбранной папке."), clear=True)
 
     def scan(status=""):
         nonlocal source
@@ -236,10 +267,10 @@ def _renamer(page):
             return
         requested = scope()
         if not requested[0]:
-            page.notice("Выбери папку с файлами.")
+            page.notice(tr("Choose a folder containing files.", "Выбери папку с файлами."))
             return
         source = None
-        invalidate("Ищу файлы…", clear=True)
+        invalidate(tr("Looking for files…", "Ищу файлы…"), clear=True)
         version = revision
 
         def scanned(data):
@@ -247,13 +278,13 @@ def _renamer(page):
             if version != revision or requested != scope():
                 return
             source, files = requested, data["files"]
-            stats.Text = "Готовлю предпросмотр…" if files else "Подходящих файлов нет."
+            stats.Text = tr("Preparing preview…", "Готовлю предпросмотр…") if files else tr("No matching files.", "Подходящих файлов нет.")
             if status:
                 page.notice(status)
             preview()
 
         page.run(lambda: page.post("/api/renamer/scan", {"folder": requested[0], "filter": requested[1]}),
-                 scanned, message="Ищу файлы…")
+                 scanned, message=tr("Looking for files…", "Ищу файлы…"))
 
     def mutated(data, count, message):
         status = f"{message} {data[count]}."
@@ -269,28 +300,40 @@ def _renamer(page):
             return
         data, ready = preview_result
         request = {"folder": data["folder"], "renames": data["preview"]}
-        if not page.confirm("Переименовать файлы?", f"Будет переименовано {ready} шт. в папке\n{data['folder']}"):
+        if not page.confirm(tr("Rename the files?", "Переименовать файлы?"), tr(
+            f"Files to rename: {ready}\n{data['folder']}",
+            f"Будет переименовано {ready} шт. в папке\n{data['folder']}",
+        )):
             return
         scope_changed()
         page.run(lambda: page.post("/api/renamer/apply", request),
-                 lambda done: mutated(done, "renamed_count", "Переименовано файлов"), message="Переименовываю файлы…")
+                 lambda done: mutated(done, "renamed_count", tr("Files renamed", "Переименовано файлов")), message=tr(
+                     "Renaming files…",
+                     "Переименовываю файлы…",
+                 ))
 
     def undo():
         def choose(data):
             item = data["last_run"]
             if item is None:
-                page.notice("История переименований пуста.")
+                page.notice(tr("Rename history is empty.", "История переименований пуста."))
                 return
-            if page.confirm("Вернуть исходные имена?", f"Последнее переименование: {item['count']} шт.\n{item['folder']}"):
+            if page.confirm(tr("Restore the original names?", "Вернуть исходные имена?"), tr(
+                f"Last rename: {item['count']} files\n{item['folder']}",
+                f"Последнее переименование: {item['count']} шт.\n{item['folder']}",
+            )):
                 scope_changed()
                 page.run(lambda: page.post("/api/renamer/undo", {"run_id": item["run_id"]}),
-                         lambda done: mutated(done, "restored_count", "Восстановлено имён"), message="Возвращаю имена…")
+                         lambda done: mutated(done, "restored_count", tr("Names restored", "Восстановлено имён")), message=tr(
+                             "Restoring names…",
+                             "Возвращаю имена…",
+                         ))
 
         page.run(lambda: page.get("/api/renamer/last-run"), choose)
 
-    _, apply_button, _ = page.actions(("Найти файлы", scan, True),
-                                      ("Переименовать файлы", apply), ("Отменить последнее", undo))
-    stats = page.text("Найди файлы в выбранной папке.", muted=True)
+    _, apply_button, _ = page.actions((tr("Find files", "Найти файлы"), scan, True),
+                                      (tr("Rename files", "Переименовать файлы"), apply), (tr("Undo last rename", "Отменить последнее"), undo))
+    stats = page.text(tr("Find files in the selected folder.", "Найди файлы в выбранной папке."), muted=True)
     rows = page.rows(max_height=360)
     apply_button.IsEnabled = False
     folder.TextChanged += scope_changed
@@ -305,15 +348,22 @@ def _renamer(page):
 
 
 def _compare(page):
-    left = page.folder("Первая папка", page.default_folder)
-    right = page.folder("Вторая папка")
-    deep = page.check("Сравнивать содержимое файлов")
-    page.text("Быстрое сравнение проверяет размер и тип. Проверка содержимого находит изменения одинакового размера.", muted=True)
+    left = page.folder(tr("First folder", "Первая папка"), page.default_folder)
+    right = page.folder(tr("Second folder", "Вторая папка"))
+    deep = page.check(tr("Compare file contents", "Сравнивать содержимое файлов"))
+    page.text(tr(
+        "Quick comparison checks size and type. Content comparison finds changes in files of the same size.",
+        "Быстрое сравнение проверяет размер и тип. Проверка содержимого находит изменения одинакового размера.",
+    ), muted=True)
     data = None
     shown = []
     copied = set()
     categories = ("added", "removed", "changed")
-    titles = {"added": "Только во второй", "removed": "Только в первой", "changed": "Изменилось"}
+    titles = {
+        "added": tr("Only in the second folder", "Только во второй"),
+        "removed": tr("Only in the first folder", "Только в первой"),
+        "changed": tr("Changed", "Изменилось"),
+    }
 
     def inputs():
         return left.Text.strip(), right.Text.strip(), bool(deep.IsChecked)
@@ -324,10 +374,14 @@ def _compare(page):
         if reason == "size":
             detail = f"{_size(item['left_size'])} → {_size(item['right_size'])}"
         elif reason:
-            detail = {"type": "файл и папка", "content": "разное содержимое", "unreadable": "не удалось прочитать"}[reason]
+            detail = {
+                "type": tr("file and folder", "файл и папка"),
+                "content": tr("different contents", "разное содержимое"),
+                "unreadable": tr("could not read", "не удалось прочитать"),
+            }[reason]
         else:
-            detail = "папка" if item["kind"] == "dir" else _size(item["size"])
-        marker = "  ·  Скопировано" if (category, item["path"]) in copied else ""
+            detail = tr("folder", "папка") if item["kind"] == "dir" else _size(item["size"])
+        marker = tr("  ·  Copied", "  ·  Скопировано") if (category, item["path"]) in copied else ""
         return f"{titles[category]}  ·  {item['path']}  ·  {detail}{marker}"
 
     def selection(*_):
@@ -336,8 +390,8 @@ def _compare(page):
         enabled = bool(item and item["category"] != "changed" and (item["category"], item["path"]) not in copied)
         copy_button.IsEnabled = enabled
         title = (
-            "Скопировать в первую" if enabled and item["category"] == "added" else
-            "Скопировать во вторую" if enabled else "Скопировать выбранное"
+            tr("Copy to first folder", "Скопировать в первую") if enabled and item["category"] == "added" else
+            tr("Copy to second folder", "Скопировать во вторую") if enabled else tr("Copy selected", "Скопировать выбранное")
         )
         copy_button.Content = label(title)
         copy_button.ToolTip = title
@@ -354,32 +408,32 @@ def _compare(page):
             return
         counts = data["counts"]
         summary.Text = (" · ".join(f"{titles[key]} {counts[key]}" for key in categories)
-                        + f" · совпадает {counts['same']}")
+                        + tr(f" · {counts['same']} matching", f" · совпадает {counts['same']}"))
         expected = sum(counts[key] for key in active)
-        method = "Проверено содержимое" if data["deep"] else "Проверены размер и тип"
-        detail = f"{method} · {data['seconds']:g} с"
+        method = tr("Compared contents", "Проверено содержимое") if data["deep"] else tr("Compared size and type", "Проверены размер и тип")
+        detail = tr(f"{method} · {data['seconds']:g} s", f"{method} · {data['seconds']:g} с")
         if len(shown) < expected:
-            detail += f" · показано {len(shown)} из {expected}"
+            detail += tr(f" · Showing {len(shown)} of {expected}", f" · показано {len(shown)} из {expected}")
         if not expected:
-            detail += " · отличий в этом списке нет"
+            detail += tr(" · No differences in this list", " · отличий в этом списке нет")
         if data["errors"]:
-            detail += f" · ошибок доступа {len(data['errors'])}"
+            detail += tr(f" · Access errors: {len(data['errors'])}", f" · ошибок доступа {len(data['errors'])}")
         if data["truncated"]:
-            detail += " · часть файлов не вошла в сравнение"
+            detail += tr(" · Some files were excluded", " · часть файлов не вошла в сравнение")
         note.Text = detail
 
     def clear(*_):
         nonlocal data
         data = None
         copied.clear()
-        summary.Text = "Выбери две папки для сравнения."
+        summary.Text = tr("Choose two folders to compare.", "Выбери две папки для сравнения.")
         note.Text = ""
         render()
 
     def compare():
         one, two, contents = inputs()
         if not one or not two:
-            page.notice("Укажи обе папки.")
+            page.notice(tr("Enter both folders.", "Укажи обе папки."))
             return
         if page.busy:
             return
@@ -393,7 +447,7 @@ def _compare(page):
                 render()
 
         page.run(lambda: page.post("/api/compare/run", {"left": one, "right": two, "deep": contents}),
-                 finished, message="Сравниваю папки…")
+                 finished, message=tr("Comparing folders…", "Сравниваю папки…"))
 
     def copy():
         selected = page.selected(rows, shown)
@@ -405,28 +459,34 @@ def _compare(page):
         request = {"source": data[origin], "target": data[destination], "path": rel}
         snapshot = data
         target_path = Path(request["target"]) / rel
-        if not page.confirm("Скопировать выбранное?", f"{rel}\n\nПапка назначения\n{request['target']}"):
+        if not page.confirm(tr("Copy the selected items?", "Скопировать выбранное?"), tr(
+            f"{rel}\n\nDestination folder\n{request['target']}",
+            f"{rel}\n\nПапка назначения\n{request['target']}",
+        )):
             return
 
         def work():
             if target_path.exists() or target_path.is_symlink():
-                raise ValueError("В папке назначения уже есть такой файл или папка. Повтори сравнение.")
+                raise ValueError(tr(
+                    "An item with the same name already exists in the destination. Run the comparison again.",
+                    "В папке назначения уже есть такой файл или папка. Повтори сравнение.",
+                ))
             return page.post("/api/compare/sync", request)
 
         def finish(_result):
             if data is snapshot:
                 copied.add((category, rel))
                 render()
-            page.notice(f"Скопировано в {request['target']}")
+            page.notice(tr(f"Copied to {request['target']}", f"Скопировано в {request['target']}"))
 
-        page.run(work, finish, message="Копирую…")
+        page.run(work, finish, message=tr("Copying…", "Копирую…"))
 
-    page.actions(("Сравнить", compare, True))
-    summary = page.text("Выбери две папки для сравнения.", muted=True)
-    view = page.choice("Показать", ("Все отличия", *(titles[key] for key in categories)))
+    page.actions((tr("Compare", "Сравнить"), compare, True))
+    summary = page.text(tr("Choose two folders to compare.", "Выбери две папки для сравнения."), muted=True)
+    view = page.choice(tr("Show", "Показать"), (tr("All differences", "Все отличия"), *(titles[key] for key in categories)))
     rows = page.rows(max_height=430)
     note = page.text("", muted=True)
-    copy_button, = page.actions(("Скопировать выбранное", copy))
+    copy_button, = page.actions((tr("Copy selected", "Скопировать выбранное"), copy))
     copy_button.IsEnabled = False
     view.SelectionChanged += render
     rows.SelectionChanged += selection
@@ -513,10 +573,19 @@ def _clipboard_image():
 
 
 def _images(page):
-    output = page.choice("Формат результата", ("WebP", "JPEG", "PNG"))
+    output = page.choice(tr("Output format", "Формат результата"), ("WebP", "JPEG", "PNG"))
     with _group(page) as quality_group:
-        quality = _slider(page, "Качество", 10, 100, 80, "%")
-    resize = page.choice("Максимальная сторона", ("Исходный размер", "1920 пкс", "1280 пкс", "800 пкс", "400 пкс"))
+        quality = _slider(page, tr("Quality", "Качество"), 10, 100, 80, "%")
+    resize = page.choice(tr("Longest side", "Максимальная сторона"), (tr("Original size", "Исходный размер"), tr("1920 px", "1920 пкс"), tr(
+        "1280 px",
+        "1280 пкс",
+    ), tr(
+        "800 px",
+        "800 пкс",
+    ), tr(
+        "400 px",
+        "400 пкс",
+    )))
     items = []
 
     def select(*_):
@@ -524,7 +593,7 @@ def _images(page):
         save_button.IsEnabled = remove_button.IsEnabled = bool(picked)
         picture.Visibility = Visibility.Visible if picked else Visibility.Collapsed
         picture.Source = _bitmap(picked[0]["thumbnail"]) if picked else None
-        AutomationProperties.SetName(picture, picked[0]["name"] if picked else "Предпросмотр")
+        AutomationProperties.SetName(picture, picked[0]["name"] if picked else tr("Preview", "Предпросмотр"))
 
     def describe(item):
         old_width, old_height = item["original_dimensions"]
@@ -539,12 +608,15 @@ def _images(page):
         select()
         all_button.IsEnabled = clear_button.IsEnabled = bool(items)
         if not items:
-            totals.Text = "Добавь изображения для обработки."
+            totals.Text = tr("Add images to process.", "Добавь изображения для обработки.")
             return
         old_size = sum(item["original_size"] for item in items)
         new_size = sum(len(item["data"]) for item in items)
         change = f" ({(new_size / old_size - 1):+.0%})" if old_size and new_size != old_size else ""
-        totals.Text = f"Обработано {len(items)} · {_size(old_size)} → {_size(new_size)}{change}"
+        totals.Text = tr(
+            f"Processed: {len(items)} · {_size(old_size)} → {_size(new_size)}{change}",
+            f"Обработано {len(items)} · {_size(old_size)} → {_size(new_size)}{change}",
+        )
 
     def process(batch):
         if not batch or page.busy:
@@ -566,9 +638,9 @@ def _images(page):
             items[0:0] = produced
             render()
             if failures:
-                page.notice("Не удалось обработать:\n" + "\n".join(failures))
+                page.notice(tr("Could not process:\n", "Не удалось обработать:\n") + "\n".join(failures))
 
-        page.run(work, finish, message="Обрабатываю изображения…")
+        page.run(work, finish, message=tr("Processing images…", "Обрабатываю изображения…"))
 
     def receive(paths):
         sources = [Path(path) for path in paths]
@@ -578,8 +650,11 @@ def _images(page):
         if page.busy:
             return
         dialog = make(
-            OpenFileDialog, Title="Выбери изображения", Multiselect=True,
-            Filter="Изображения (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp",
+            OpenFileDialog, Title=tr("Choose images", "Выбери изображения"), Multiselect=True,
+            Filter=tr(
+                "Images (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp",
+                "Изображения (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp",
+            ),
         )
         if dialog.ShowDialog(page.window):
             receive(dialog.FileNames)
@@ -593,16 +668,16 @@ def _images(page):
                 return True
             data = _clipboard_image() if Clipboard.ContainsImage() else None
         except Exception:
-            page.notice("Не удалось прочитать буфер обмена. Попробуй ещё раз.")
+            page.notice(tr("Could not read the clipboard. Try again.", "Не удалось прочитать буфер обмена. Попробуй ещё раз."))
             return True
         if data is None:
             return False
-        process([("из буфера.png", data)])
+        process([(tr("clipboard.png", "из буфера.png"), data)])
         return True
 
     def paste_click():
         if not page.busy and not paste():
-            page.notice("В буфере обмена нет изображения или файлов.")
+            page.notice(tr("There are no images or files on the clipboard.", "В буфере обмена нет изображения или файлов."))
 
     def paste_key(_sender, event):
         if (event.Key == Key.V and Keyboard.Modifiers == ModifierKeys.Control
@@ -621,7 +696,7 @@ def _images(page):
         path = destination.Text.strip()
         selected = list(items) if all_items else page.selected(rows, items)
         if not path:
-            page.notice("Укажи папку для сохранения.")
+            page.notice(tr("Choose a destination folder.", "Укажи папку для сохранения."))
             return
         if not selected:
             return
@@ -639,30 +714,33 @@ def _images(page):
 
         def finish(result):
             saved, errors = result
-            message = f"Сохранено в {path} · {len(saved)} шт."
+            message = tr(f"Saved to {path} · {len(saved)} files", f"Сохранено в {path} · {len(saved)} шт.")
             if len(saved) == 1:
-                message = f"Сохранено: {saved[0]}"
+                message = tr(f"Saved: {saved[0]}", f"Сохранено: {saved[0]}")
             if errors:
                 message += "\n" + "\n".join(errors)
             page.notice(message)
 
-        page.run(work, finish, message="Сохраняю изображения…")
+        page.run(work, finish, message=tr("Saving images…", "Сохраняю изображения…"))
 
     def update_quality(*_):
         quality_group.Visibility = Visibility.Collapsed if output.SelectedIndex == 2 else Visibility.Visible
 
-    page.text("Перетащи сюда изображения PNG, JPEG, WebP, GIF или BMP. Поддерживается вставка Ctrl+V.", muted=True)
-    page.actions(("Выбрать изображения…", browse, True), ("Вставить из буфера", paste_click))
-    totals = page.text("Добавь изображения для обработки.", muted=True)
+    page.text(tr(
+        "Drop PNG, JPEG, WebP, GIF or BMP images here. You can also paste with Ctrl+V.",
+        "Перетащи сюда изображения PNG, JPEG, WebP, GIF или BMP. Поддерживается вставка Ctrl+V.",
+    ), muted=True)
+    page.actions((tr("Choose images…", "Выбрать изображения…"), browse, True), (tr("Paste from clipboard", "Вставить из буфера"), paste_click))
+    totals = page.text(tr("Add images to process.", "Добавь изображения для обработки."), muted=True)
     rows = page.rows(max_height=260, multiple=True)
     picture = make(Image, MaxWidth=320, MaxHeight=220, Stretch=Stretch.Uniform,
                    HorizontalAlignment=HorizontalAlignment.Left, Margin=Thickness(0, 0, 0, 10),
                    Visibility=Visibility.Collapsed)
     page.add(picture)
-    destination = page.folder("Папка для сохранения", page.default_folder)
+    destination = page.folder(tr("Destination folder", "Папка для сохранения"), page.default_folder)
     save_button, all_button, remove_button, clear_button = page.actions(
-        ("Сохранить выбранные", save, True), ("Сохранить все", lambda: save(True)),
-        ("Убрать выбранные", remove), ("Очистить список", lambda: remove(True)),
+        (tr("Save selected", "Сохранить выбранные"), save, True), (tr("Save all", "Сохранить все"), lambda: save(True)),
+        (tr("Remove selected", "Убрать выбранные"), remove), (tr("Clear list", "Очистить список"), lambda: remove(True)),
     )
     rows.SelectionChanged += select
     output.SelectionChanged += update_quality
@@ -687,44 +765,50 @@ def _hash_fields(page, fields):
         if value:
             page.copy(value)
 
-    page.actions(*((f"Копировать {title}", lambda key=key: copy(key)) for key, title in fields))
+    page.actions(*((tr(f"Copy {title}", f"Копировать {title}"), lambda key=key: copy(key)) for key, title in fields))
     return fill
 
 
 def _checksum(page):
-    mode = page.choice("Инструмент", ("Хэши файла", "Хэши текста и Base64", "Генератор паролей"))
+    mode = page.choice(tr("Tool", "Инструмент"), (tr("File hashes", "Хэши файла"), tr("Text hashes and Base64", "Хэши текста и Base64"), tr(
+        "Password generator",
+        "Генератор паролей",
+    )))
     with _group(page) as file_group:
-        path = page.file("Файл для проверки")
-        page.text("Можно перетащить файл из проводника.", muted=True)
-        page.actions(("Рассчитать хэши", lambda: calculate(), True))
+        path = page.file(tr("File to verify", "Файл для проверки"))
+        page.text(tr("You can drag a file from File Explorer.", "Можно перетащить файл из проводника."), muted=True)
+        page.actions((tr("Calculate hashes", "Рассчитать хэши"), lambda: calculate(), True))
         file_meta = page.text("", muted=True)
-        expected = page.field("Эталонный хэш")
+        expected = page.field(tr("Expected hash", "Эталонный хэш"))
         verdict = page.text("")
         fill_file = _hash_fields(page, (("sha256", "SHA-256"), ("md5", "MD5"), ("sha1", "SHA-1"), ("sha512", "SHA-512")))
     with _group(page) as text_group:
-        source = page.field("Текст", multiline=True)
+        source = page.field(tr("Text", "Текст"), multiline=True)
         fill_text = _hash_fields(page, (("sha256", "SHA-256"), ("md5", "MD5"), ("base64_encode", "Base64")))
     with _group(page) as password_group:
-        password = page.field("Пароль")
+        password = page.field(tr("Password", "Пароль"))
         password.IsReadOnly = True
         strength = page.text("", muted=True)
         meter = page.add(make(ProgressBar, Minimum=0, Maximum=80, Height=6, Margin=Thickness(0, 0, 0, 10)))
-        AutomationProperties.SetName(meter, "Стойкость пароля")
-        password_mode = page.choice("Способ генерации", ("Случайные символы", "Фраза из слов"))
+        AutomationProperties.SetName(meter, tr("Password strength", "Стойкость пароля"))
+        password_mode = page.choice(tr("Generation method", "Способ генерации"), (tr("Random characters", "Случайные символы"), tr(
+            "Passphrase",
+            "Фраза из слов",
+        )))
         with _group(page) as random_panel:
-            length = _slider(page, "Длина пароля", 8, 64, 16)
+            length = _slider(page, tr("Password length", "Длина пароля"), 8, 64, 16)
             checks = {
-                "uppercase": page.check("Заглавные буквы A–Z", True),
-                "lowercase": page.check("Строчные буквы a–z", True),
-                "digits": page.check("Цифры 0–9", True),
-                "symbols": page.check("Спецсимволы", True),
-                "avoid_ambiguous": page.check("Исключить похожие символы: 1, l, I, 0, O", True),
+                "uppercase": page.check(tr("Uppercase letters A–Z", "Заглавные буквы A–Z"), True),
+                "lowercase": page.check(tr("Lowercase letters a–z", "Строчные буквы a–z"), True),
+                "digits": page.check(tr("Digits 0–9", "Цифры 0–9"), True),
+                "symbols": page.check(tr("Special characters", "Спецсимволы"), True),
+                "avoid_ambiguous": page.check(tr("Exclude similar characters: 1, l, I, 0, O", "Исключить похожие символы: 1, l, I, 0, O"), True),
             }
         with _group(page) as phrase_panel:
-            words = _slider(page, "Количество слов", 2, 10, 4)
+            words = _slider(page, tr("Number of words", "Количество слов"), 2, 10, 4)
         _switch(page, password_mode, (random_panel, phrase_panel))
-        page.actions(("Новый пароль", lambda: generate(), True),
-                     ("Копировать пароль", lambda: page.copy(password.Text)))
+        page.actions((tr("New password", "Новый пароль"), lambda: generate(), True),
+                     (tr("Copy password", "Копировать пароль"), lambda: page.copy(password.Text)))
     _switch(page, mode, (file_group, text_group, password_group))
     file_hashes = {}
     algorithms = {"sha256": "SHA-256", "md5": "MD5", "sha1": "SHA-1", "sha512": "SHA-512"}
@@ -735,7 +819,10 @@ def _checksum(page):
             verdict.Text = ""
             return
         alg = next((algorithms[key] for key, digest in file_hashes.items() if digest.casefold() == value), "")
-        verdict.Text = f"Эталонный хэш совпадает · {alg}" if alg else "Эталонный хэш не совпадает."
+        verdict.Text = tr(f"Expected hash matches · {alg}", f"Эталонный хэш совпадает · {alg}") if alg else tr(
+            "Expected hash does not match.",
+            "Эталонный хэш не совпадает.",
+        )
 
     def clear_file(*_):
         file_hashes.clear()
@@ -746,7 +833,7 @@ def _checksum(page):
     def calculate():
         requested = path.Text.strip()
         if not requested:
-            page.notice("Выбери файл для проверки.")
+            page.notice(tr("Choose a file to verify.", "Выбери файл для проверки."))
             return
         if page.busy:
             return
@@ -760,7 +847,7 @@ def _checksum(page):
             fill_file(file_hashes)
             verify()
 
-        page.run(lambda: page.post("/api/checksum/file", {"path": requested}), finish, message="Читаю файл…")
+        page.run(lambda: page.post("/api/checksum/file", {"path": requested}), finish, message=tr("Reading file…", "Читаю файл…"))
 
     def dropped(paths):
         if paths and not page.busy:
@@ -791,7 +878,7 @@ def _checksum(page):
             length=int(length.Value), mode="passphrase" if phrase else "random", words_count=int(words.Value), **config,
         )
         password.Text = result["password"]
-        strength.Text = f"Оценка энтропии · {result['entropy']:g} бит".replace(".", ",")
+        strength.Text = tr(f"Estimated entropy · {result['entropy']:g} bits", f"Оценка энтропии · {result['entropy']:g} бит").replace(".", ",")
         meter.Value = min(80, result["entropy"])
 
     path.TextChanged += clear_file

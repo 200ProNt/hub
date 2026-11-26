@@ -10,10 +10,12 @@ from System.Windows import Clipboard, FontWeights, GridLength, MessageBox, Messa
 from System.Windows import TextWrapping, Thickness, VerticalAlignment
 from System.Windows.Automation import AutomationProperties
 from System.Windows.Controls import Border, Button, CheckBox, ColumnDefinition, ComboBox, DockPanel, Dock, Grid, ListBox, ListBoxItem
+from System.Windows.Controls import ComboBoxItem
 from System.Windows.Controls import Orientation, SelectionMode, StackPanel, TextBlock, TextBox, WrapPanel
 from System.Windows.Media import Geometry, PenLineCap, PenLineJoin, Stretch
 from System.Windows.Shapes import Path
 from System.Windows.Forms import DialogResult, FolderBrowserDialog
+from tools.i18n import tr
 
 from .icons import ICONS
 
@@ -102,8 +104,8 @@ class Page:
             if path:
                 field.Text = path
 
-        button = self.hub.button("Обзор…", browse)
-        AutomationProperties.SetName(button, f"Обзор. {title}")
+        button = self.hub.button(tr("Browse…", "Обзор…"), browse)
+        AutomationProperties.SetName(button, tr(f"Browse: {title}", f"Обзор. {title}"))
         Grid.SetColumn(button, 1)
         button.Margin = Thickness(6, 0, 0, 0)
         grid.Children.Add(button)
@@ -125,11 +127,21 @@ class Page:
             return dialog.FileName if dialog.ShowDialog(self.window) else ""
         return self._picker(title, value, choose)
 
-    def choice(self, title, values, index=0):
+    def choice(self, title, values, index=0, *, previews=None):
         value = make(ComboBox, MinHeight=32)
         column = self.group(title, value)
-        for item in values:
-            value.Items.Add(str(item))
+        for number, item in enumerate(values):
+            if previews is None:
+                value.Items.Add(str(item))
+                continue
+            row = make(StackPanel, Orientation=Orientation.Horizontal)
+            preview = previews[number]
+            preview.Margin = Thickness(0, 0, 8, 0)
+            row.Children.Add(preview)
+            row.Children.Add(label(item))
+            entry = make(ComboBoxItem, Content=row)
+            AutomationProperties.SetName(entry, item)
+            value.Items.Add(entry)
         value.SelectedIndex = index
         value.DropDownOpened += lambda *_: self.hub.animate_dropdown(value, True)
         value.DropDownClosed += lambda *_: self.hub.animate_dropdown(value, False)
@@ -226,7 +238,9 @@ class Page:
     def post(self, path, payload):
         return json.loads(self._request(path, payload))
 
-    def run(self, work, done=None, message="Работаю…"):
+    def run(self, work, done=None, message=None):
+        if message is None:
+            message = tr("Working…", "Работаю…")
         if message and self.busy:
             return
         if message:
@@ -275,7 +289,7 @@ class Page:
 
     def copy(self, text):
         Clipboard.SetText(str(text))
-        self.notice("Скопировано")
+        self.notice(tr("Copied", "Скопировано"))
 
     @staticmethod
     def open_url(url):
@@ -288,4 +302,5 @@ class Page:
         dialog = make(SaveFileDialog, FileName=suggested_filename)
         if dialog.ShowDialog(self.window):
             target = FilePath(dialog.FileName)
-            self.run(lambda: target.write_bytes(self.bytes(path)), lambda _: self.notice(f"Сохранено в {target.name}"))
+            self.run(lambda: target.write_bytes(self.bytes(path)),
+                     lambda _: self.notice(tr(f"Saved to {target.name}", f"Сохранено в {target.name}")))

@@ -585,10 +585,10 @@
               Background="{DynamicResource Layer}" Padding="18" MaxWidth="620" Margin="18,62,18,15"
               HorizontalAlignment="Stretch" VerticalAlignment="Top" KeyboardNavigation.TabNavigation="Cycle">
         <StackPanel>
-          <TextBlock Text="Поиск по Hub" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
-          <TextBox x:Name="SearchInput" AutomationProperties.Name="Поиск по Hub" />
+          <TextBlock x:Name="SearchTitle" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
+          <TextBox x:Name="SearchInput" />
           <ListBox x:Name="SearchResults" Margin="0,10,0,0" MaxHeight="320" />
-          <TextBlock Text="↑ ↓  Выбрать      Enter  Открыть      Esc  Закрыть" Foreground="{DynamicResource Muted}" Margin="0,8,0,0" FontSize="12" />
+          <TextBlock x:Name="SearchHint" Foreground="{DynamicResource Muted}" Margin="0,8,0,0" FontSize="12" />
         </StackPanel>
       </Border>
     </Grid>

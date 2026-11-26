@@ -2,6 +2,7 @@
 
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -9,6 +10,13 @@ import server
 
 
 class HomeSummaryTestCase(unittest.TestCase):
+    def test_summary_exposes_sampler_usage(self):
+        sample = {"ready": True, "system": {"cpu": 17, "memory": {"total": 8 * 1024**3,
+                  "used": 2 * 1024**3, "percent": 25}}}
+        with patch.object(server.monitor, "snapshot", return_value=sample):
+            vitals = server.home_summary()["vitals"]
+        self.assertEqual((vitals["cpu_percent"], vitals["memory_percent"]), (17, 25))
+
     def test_summary_structure(self):
         summary = server.home_summary()
         self.assertIn("vitals", summary)

@@ -7,9 +7,11 @@ from math import cos, pi, sin, tau
 from pathlib import PureWindowsPath
 from urllib.parse import quote, urlencode
 
+from tools.i18n import tr
+
 
 def _size(value):
-    units = ("Б", "КБ", "МБ", "ГБ", "ТБ", "ПБ")
+    units = (tr("B", "Б"), tr("KB", "КБ"), tr("MB", "МБ"), tr("GB", "ГБ"), tr("TB", "ТБ"), tr("PB", "ПБ"))
     amount = value or 0
     for unit in units[:-1]:
         if amount < 1024:
@@ -35,20 +37,20 @@ def _file_line(item):
     if date := _date(timestamp):
         details.append(date)
     if item.get("unsafe"):
-        details.append("файл недоступен для переноса или удаления")
+        details.append(tr("this file cannot be moved or deleted", "файл недоступен для переноса или удаления"))
     return "  ·  ".join(details)
 
 
 def _warnings(result):
     parts = []
     if result.get("truncated"):
-        parts.append("Достигнут предел обхода, показана часть результатов.")
+        parts.append(tr("The scan reached its limit. Some results are missing.", "Достигнут предел обхода, показана часть результатов."))
     errors = result.get("errors") or []
     for error in errors[:5]:
         path = error.get("path") or error.get("file")
         parts.append(f"{path} — {error['reason']}" if path else error["reason"])
     if len(errors) > 5:
-        parts.append(f"Всего ошибок: {len(errors)}.")
+        parts.append(tr(f"Total errors: {len(errors)}.", f"Всего ошибок: {len(errors)}."))
     return "\n".join(parts)
 
 
@@ -60,15 +62,15 @@ def _result_text(result, count_key, caption):
 
 def _open(page, path):
     if path:
-        page.run(lambda: page.post("/api/open", {"path": path}), message="Открываю Проводник…")
+        page.run(lambda: page.post("/api/open", {"path": path}), message=tr("Opening File Explorer…", "Открываю Проводник…"))
     else:
-        page.notice("Сначала выбери файл или папку.")
+        page.notice(tr("Select a file or folder first.", "Сначала выбери файл или папку."))
 
 
 def _target(page, folder):
     path = str(folder.Text).strip()
     if not path:
-        page.notice("Укажи папку.")
+        page.notice(tr("Choose a folder.", "Укажи папку."))
     return path
 
 
@@ -78,37 +80,43 @@ def _undo(page, tool, changed):
     def act(data):
         run = data.get("last_run")
         if not run:
-            page.notice("Нет операций, которые можно отменить.")
+            page.notice(tr("There are no actions to undo.", "Нет операций, которые можно отменить."))
             return
-        details = f"Вернуть на место: {run['count']} · {_size(run['size'])}"
+        details = tr(f"Restore: {run['count']} · {_size(run['size'])}", f"Вернуть на место: {run['count']} · {_size(run['size'])}")
         if run.get("folder"):
             details += f"\n{run['folder']}"
-        if page.confirm("Отменить последнее действие?", details):
+        if page.confirm(tr("Undo the last action?", "Отменить последнее действие?"), details):
             page.run(
                 lambda: page.post(f"{endpoint}/undo", {"run_id": run["run_id"]}),
-                lambda result: changed(_result_text(result, "restored", "Возвращено")),
-                "Возвращаю на место…",
+                lambda result: changed(_result_text(result, "restored", tr("Restored", "Возвращено"))),
+                tr("Restoring…", "Возвращаю на место…"),
             )
 
-    return lambda: page.run(lambda: page.get(f"{endpoint}/last-run"), act, "Проверяю историю…")
+    return lambda: page.run(lambda: page.get(f"{endpoint}/last-run"), act, tr("Checking history…", "Проверяю историю…"))
 
 
 def _remove(page, tool, items, mode, changed, folder=""):
     if not items:
-        page.notice("Выбери, что убрать.")
+        page.notice(tr("Select what to remove.", "Выбери, что убрать."))
         return
     if any(item.get("unsafe") for item in items):
-        page.notice("Сними отметку с недоступных файлов.")
+        page.notice(tr("Deselect files that cannot be removed.", "Сними отметку с недоступных файлов."))
         return
     deleting = mode == "delete"
-    title = "Удалить навсегда?" if deleting else "Перенести в корзину Хаба?"
+    title = tr("Delete permanently?", "Удалить навсегда?") if deleting else tr("Move to the Hub Trash?", "Перенести в корзину Хаба?")
     details = [
-        f"Выбрано: {len(items)} · {_size(sum(item['size'] for item in items))}",
+        tr(
+            f"Selected: {len(items)} · {_size(sum(item['size'] for item in items))}",
+            f"Выбрано: {len(items)} · {_size(sum(item['size'] for item in items))}",
+        ),
         *[item["path"] for item in items[:5]],
     ]
     if len(items) > 5:
-        details.append(f"Ещё: {len(items) - 5}")
-    details.append("Вернуть удалённое будет невозможно." if deleting else "Перенос можно отменить.")
+        details.append(tr(f"And {len(items) - 5} more", f"Ещё: {len(items) - 5}"))
+    details.append(tr("Deleted items cannot be restored.", "Вернуть удалённое будет невозможно.") if deleting else tr(
+        "You can undo the move.",
+        "Перенос можно отменить.",
+    ))
     if not page.confirm(title, "\n".join(details)):
         return
 
@@ -122,8 +130,8 @@ def _remove(page, tool, items, mode, changed, folder=""):
         body["path"] = paths[0]
     page.run(
         lambda: page.post(f"/api/{tool}/remove", body),
-        lambda result: changed(_result_text(result, "removed", "Удалено" if deleting else "В корзину Хаба")),
-        "Удаляю…" if deleting else "Переношу в корзину…",
+        lambda result: changed(_result_text(result, "removed", tr("Deleted", "Удалено") if deleting else tr("Moved to Hub Trash", "В корзину Хаба"))),
+        tr("Deleting…", "Удаляю…") if deleting else tr("Moving to Trash…", "Переношу в корзину…"),
     )
 
 
@@ -183,26 +191,29 @@ def _sorter_rules(text):
         if not separator:
             category, separator, extensions = line.rpartition("=")
         if not separator or not category.strip():
-            raise ValueError(f"Строка {number}: укажи категорию и расширения через знак =.")
+            raise ValueError(tr(
+                f"Line {number}: separate the category and extensions with =.",
+                f"Строка {number}: укажи категорию и расширения через знак =.",
+            ))
         rules.append({"name": category.strip(), "extensions": _csv(extensions)})
     return rules
 
 
 def _sorter(page):
-    folder = page.folder("Папка для сортировки", page.default_folder)
+    folder = page.folder(tr("Folder to sort", "Папка для сортировки"), page.default_folder)
     state = {"items": [], "folder": ""}
 
     def refresh(status=""):
         scan(state["folder"], status) if state["folder"] else page.notice(status)
 
     page.actions(
-        ("Предпросмотр", lambda: scan(_target(page, folder)), True),
-        ("Показать папку в Проводнике", lambda: _open(page, state["folder"] or _target(page, folder))),
-        ("Отменить последний перенос", _undo(page, "sorter", refresh)),
+        (tr("Preview", "Предпросмотр"), lambda: scan(_target(page, folder)), True),
+        (tr("Show folder in File Explorer", "Показать папку в Проводнике"), lambda: _open(page, state["folder"] or _target(page, folder))),
+        (tr("Undo last move", "Отменить последний перенос"), _undo(page, "sorter", refresh)),
     )
     summary = page.text("", muted=True)
-    query = page.field("Поиск по имени файла")
-    category = page.choice("Категория", ["Все категории"])
+    query = page.field(tr("Search by filename", "Поиск по имени файла"))
+    category = page.choice(tr("Category", "Категория"), [tr("All categories", "Все категории")])
     box = page.rows(multiple=True)
     pick = _Selection(
         page, box, lambda item: f"{item['name']}  →  {item['dest_rel']}  ·  {_size(item['size'])}  ·  {_date(item['mtime'])}"
@@ -223,9 +234,12 @@ def _sorter(page):
         def done(data):
             state.update(items=data["items"], folder=data["folder"])
             folder.Text = data["folder"]
-            summary.Text = f"Файлов: {data['total']} · Категорий: {len(data['counts'])} · {_size(data['total_size'])}"
+            summary.Text = tr(
+                f"Files: {data['total']} · Categories: {len(data['counts'])} · {_size(data['total_size'])}",
+                f"Файлов: {data['total']} · Категорий: {len(data['counts'])} · {_size(data['total_size'])}",
+            )
             category.Items.Clear()
-            for name in ["Все категории", *data["categories"]]:
+            for name in [tr("All categories", "Все категории"), *data["categories"]]:
                 category.Items.Add(name)
             category.SelectedIndex = 0
             filter_rows()
@@ -233,33 +247,42 @@ def _sorter(page):
             if status:
                 page.notice(status)
 
-        page.run(lambda: page.post("/api/sorter/scan", {"folder": path}), done, "Готовлю план сортировки…")
+        page.run(lambda: page.post("/api/sorter/scan", {"folder": path}), done, tr(
+            "Preparing the sorting plan…",
+            "Готовлю план сортировки…",
+        ))
 
     def apply():
         items = pick.picked(state["items"])
         if not items:
-            page.notice("Выбери файлы для переноса.")
+            page.notice(tr("Select files to move.", "Выбери файлы для переноса."))
             return
         if not page.confirm(
-            "Перенести выбранные файлы?",
-            f"{state['folder']}\nВыбрано: {len(items)} · {_size(sum(item['size'] for item in items))}",
+            tr("Move the selected files?", "Перенести выбранные файлы?"),
+            tr(
+                f"{state['folder']}\nSelected: {len(items)} · {_size(sum(item['size'] for item in items))}",
+                f"{state['folder']}\nВыбрано: {len(items)} · {_size(sum(item['size'] for item in items))}",
+            ),
         ):
             return
         body = {"folder": state["folder"], "files": [item["path"] for item in items]}
         page.run(
             lambda: page.post("/api/sorter/apply", body),
-            lambda result: refresh(_result_text(result, "moved", "Перенесено")),
-            "Переношу файлы…",
+            lambda result: refresh(_result_text(result, "moved", tr("Moved", "Перенесено"))),
+            tr("Moving files…", "Переношу файлы…"),
         )
 
     query.TextChanged += filter_rows
     category.SelectionChanged += filter_rows
     page.actions(
-        ("Выбрать видимые", lambda: pick.extend(pick.visible)),
-        ("Снять отметки", lambda: pick.select([])),
-        ("Перенести выбранные", apply, True),
+        (tr("Select visible", "Выбрать видимые"), lambda: pick.extend(pick.visible)),
+        (tr("Clear selection", "Снять отметки"), lambda: pick.select([])),
+        (tr("Move selected", "Перенести выбранные"), apply, True),
     )
-    rules = page.field("Правила сортировки. На каждой строке укажи «Категория = .ext, .ext»", multiline=True)
+    rules = page.field(tr(
+        "Sorting rules. Use one Category = .ext, .ext rule per line.",
+        "Правила сортировки. На каждой строке укажи «Категория = .ext, .ext»",
+    ), multiline=True)
     rules_loaded = False
 
     def show_rules(data):
@@ -270,13 +293,16 @@ def _sorter(page):
         rules_loaded = True
 
     def load_rules():
-        page.run(lambda: page.get("/api/sorter/rules"), show_rules, "Загружаю правила…")
+        page.run(lambda: page.get("/api/sorter/rules"), show_rules, tr("Loading rules…", "Загружаю правила…"))
 
     def save_rules(reset=False):
-        if reset and not page.confirm("Вернуть правила по умолчанию?", "Твои категории и расширения будут заменены."):
+        if reset and not page.confirm(tr("Restore the default rules?", "Вернуть правила по умолчанию?"), tr(
+            "Your categories and extensions will be replaced.",
+            "Твои категории и расширения будут заменены.",
+        )):
             return
         if not reset and not rules_loaded:
-            page.notice("Сначала загрузи текущие правила.")
+            page.notice(tr("Load the current rules first.", "Сначала загрузи текущие правила."))
             return
         try:
             body = {"reset": True} if reset else {"rules": _sorter_rules(str(rules.Text))}
@@ -286,14 +312,14 @@ def _sorter(page):
 
         def done(data):
             show_rules(data)
-            refresh("Правила сортировки сохранены.")
+            refresh(tr("Sorting rules saved.", "Правила сортировки сохранены."))
 
-        page.run(lambda: page.post("/api/sorter/rules", body), done, "Сохраняю правила…")
+        page.run(lambda: page.post("/api/sorter/rules", body), done, tr("Saving rules…", "Сохраняю правила…"))
 
     page.actions(
-        ("Загрузить правила", load_rules),
-        ("Сохранить правила", save_rules),
-        ("По умолчанию", lambda: save_rules(True)),
+        (tr("Load rules", "Загрузить правила"), load_rules),
+        (tr("Save rules", "Сохранить правила"), save_rules),
+        (tr("Defaults", "По умолчанию"), lambda: save_rules(True)),
     )
 
 
@@ -305,8 +331,8 @@ def _duplicates(page):
     from System.Windows.Controls import Image
     from System.Windows.Media.Imaging import BitmapCacheOption, BitmapImage
 
-    folder = page.folder("Папка для поиска дубликатов", page.default_folder)
-    recursive = page.check("Искать в подпапках", True)
+    folder = page.folder(tr("Folder to scan for duplicates", "Папка для поиска дубликатов"), page.default_folder)
+    recursive = page.check(tr("Include subfolders", "Искать в подпапках"), True)
     state = {"groups": [], "items": [], "request": None, "limit": 500}
 
     def refresh(status=""):
@@ -316,14 +342,17 @@ def _duplicates(page):
             page.notice(status)
 
     page.actions(
-        ("Найти дубликаты", lambda: scan({"folder": _target(page, folder), "recursive": bool(recursive.IsChecked)}), True),
-        ("Вернуть последний перенос", _undo(page, "dupes", refresh)),
+        (tr("Find duplicates", "Найти дубликаты"), lambda: scan({"folder": _target(page, folder), "recursive": bool(recursive.IsChecked)}), True),
+        (tr("Undo last move", "Вернуть последний перенос"), _undo(page, "dupes", refresh)),
     )
-    summary = page.text("Будут проверены файлы от 1 КБ.", muted=True)
-    query = page.field("Поиск по имени или папке")
+    summary = page.text(tr("The scan checks files of at least 1 KB.", "Будут проверены файлы от 1 КБ."), muted=True)
+    query = page.field(tr("Search by filename or folder", "Поиск по имени или папке"))
     count = page.text("", muted=True)
     box = page.rows(multiple=True)
-    pick = _Selection(page, box, lambda item: f"Группа {item['group']}  ·  {_file_line(item)}")
+    pick = _Selection(page, box, lambda item: tr(
+        f"Group {item['group']}  ·  {_file_line(item)}",
+        f"Группа {item['group']}  ·  {_file_line(item)}",
+    ))
     preview = Image()
     preview.Height = 180
     preview.Visibility = Visibility.Collapsed
@@ -336,7 +365,7 @@ def _duplicates(page):
         search = str(query.Text).strip().casefold()
         results = [item for item in state["items"] if search in item["rel"].casefold()]
         pick.show(results[:state["limit"]])
-        count.Text = f"Показано {len(pick.visible)} из {len(results)}." if state["request"] else ""
+        count.Text = tr(f"Showing {len(pick.visible)} of {len(results)}.", f"Показано {len(pick.visible)} из {len(results)}.") if state["request"] else ""
 
     def reset_limit(*_):
         state["limit"] = 500
@@ -359,15 +388,17 @@ def _duplicates(page):
             ]
             state["items"] = [item for group in state["groups"] for item in group]
             summary.Text = (
-                f"Групп: {data['groups_count']} · Лишних копий: {data['duplicate_files']} "
-                f"· Занимают {_size(data['wasted'])}"
+                tr(
+                    f"Groups: {data['groups_count']} · Extra copies: {data['duplicate_files']} · Space used: {_size(data['wasted'])}",
+                    f"Групп: {data['groups_count']} · Лишних копий: {data['duplicate_files']} · Занимают {_size(data['wasted'])}",
+                )
             )
             pick.select([])
             reset_limit()
             if notice := "\n".join(filter(None, (status, _warnings(data)))):
                 page.notice(notice)
 
-        page.run(lambda: page.post("/api/dupes/scan", body), done, "Сравниваю содержимое файлов…")
+        page.run(lambda: page.post("/api/dupes/scan", body), done, tr("Comparing file contents…", "Сравниваю содержимое файлов…"))
 
     def extra_copies(group_number=None):
         extras = [
@@ -381,7 +412,7 @@ def _duplicates(page):
         if chosen:
             extra_copies(chosen[0]["group"])
         else:
-            page.notice("Выбери файл из нужной группы.")
+            page.notice(tr("Select a file from the group.", "Выбери файл из нужной группы."))
 
     def reveal():
         chosen = page.selected(box, pick.visible)
@@ -390,7 +421,7 @@ def _duplicates(page):
     def show_preview():
         chosen = page.selected(box, pick.visible)
         if not chosen:
-            page.notice("Выбери изображение из результатов.")
+            page.notice(tr("Select an image from the results.", "Выбери изображение из результатов."))
             return
         name = chosen[0]["path"]
         # The existing endpoint decodes the path after parsing the query string.
@@ -412,20 +443,20 @@ def _duplicates(page):
                 image.EndInit()
                 image.Freeze()
             except Exception:
-                page.notice("Windows не удалось показать это изображение.")
+                page.notice(tr("Windows could not display this image.", "Windows не удалось показать это изображение."))
                 return
             finally:
                 stream.Dispose()
             preview.Source = image
             preview.Visibility = Visibility.Visible
 
-        page.run(load, done, "Открываю изображение…")
+        page.run(load, done, tr("Opening image…", "Открываю изображение…"))
 
     def remove():
         items = pick.picked(state["items"])
         counts = Counter(item["group"] for item in items)
         if any(counts[group[0]["group"]] == len(group) for group in state["groups"]):
-            page.notice("Оставь хотя бы одну копию в каждой группе.")
+            page.notice(tr("Keep at least one copy in each group.", "Оставь хотя бы одну копию в каждой группе."))
             return
         path = state["request"]["folder"] if state["request"] else ""
         _remove(page, "dupes", items, "trash", refresh, path)
@@ -434,21 +465,21 @@ def _duplicates(page):
     box.SelectionChanged += close_image
     box.MouseDoubleClick += lambda *_: reveal()
     page.actions(
-        ("Отметить лишние копии", extra_copies),
-        ("Отметить лишние в этой группе", selected_group),
-        ("Снять отметки", lambda: pick.select([])),
-        ("Показать в Проводнике", reveal),
+        (tr("Select extra copies", "Отметить лишние копии"), extra_copies),
+        (tr("Select extras in this group", "Отметить лишние в этой группе"), selected_group),
+        (tr("Clear selection", "Снять отметки"), lambda: pick.select([])),
+        (tr("Show in File Explorer", "Показать в Проводнике"), reveal),
     )
-    page.actions(("Предпросмотр изображения", show_preview))
+    page.actions((tr("Preview image", "Предпросмотр изображения"), show_preview))
     page.add(preview)
-    page.actions(("Убрать выбранные копии", remove, True))
-    page.actions(("Показать ещё", more))
+    page.actions((tr("Remove selected copies", "Убрать выбранные копии"), remove, True))
+    page.actions((tr("Show more", "Показать ещё"), more))
 
 
 def _bigfiles(page):
-    folder = page.folder("Папка для поиска крупных файлов", page.default_folder)
+    folder = page.folder(tr("Folder to scan for large files", "Папка для поиска крупных файлов"), page.default_folder)
     sizes = (5, 20, 100, 500, 1024)
-    minimum = page.choice("Минимальный размер", ["5 МБ", "20 МБ", "100 МБ", "500 МБ", "1 ГБ"], 1)
+    minimum = page.choice(tr("Minimum size", "Минимальный размер"), [tr("5 MB", "5 МБ"), tr("20 MB", "20 МБ"), tr("100 MB", "100 МБ"), tr("500 MB", "500 МБ"), tr("1 GB", "1 ГБ")], 1)
     state = {"items": [], "request": None}
 
     def refresh(status=""):
@@ -458,10 +489,10 @@ def _bigfiles(page):
             page.notice(status)
 
     page.actions(
-        ("Найти крупные файлы", lambda: scan({
+        (tr("Find large files", "Найти крупные файлы"), lambda: scan({
             "folder": _target(page, folder), "min_size": sizes[minimum.SelectedIndex] * 1024 * 1024,
         }), True),
-        ("Вернуть последний перенос", _undo(page, "bigfiles", refresh)),
+        (tr("Undo last move", "Вернуть последний перенос"), _undo(page, "bigfiles", refresh)),
     )
     summary = page.text("", muted=True)
     box = page.rows()
@@ -474,15 +505,17 @@ def _bigfiles(page):
             state.update(items=data["files"], request={**body, "folder": data["folder"]})
             folder.Text = data["folder"]
             summary.Text = (
-                f"Найдено: {data['matched']} · {_size(data['matched_size'])} "
-                f"· Показано: {len(data['files'])} · Проверено: {data['scanned']}"
+                tr(
+                    f"Found: {data['matched']} · {_size(data['matched_size'])} · Shown: {len(data['files'])} · Checked: {data['scanned']}",
+                    f"Найдено: {data['matched']} · {_size(data['matched_size'])} · Показано: {len(data['files'])} · Проверено: {data['scanned']}",
+                )
             )
             box.SelectedIndex = -1
             page.show_rows(box, state["items"], _file_line)
             if notice := "\n".join(filter(None, (status, _warnings(data)))):
                 page.notice(notice)
 
-        page.run(lambda: page.post("/api/bigfiles/scan", body), done, "Ищу крупные файлы…")
+        page.run(lambda: page.post("/api/bigfiles/scan", body), done, tr("Looking for large files…", "Ищу крупные файлы…"))
 
     def reveal():
         chosen = page.selected(box, state["items"])
@@ -490,9 +523,9 @@ def _bigfiles(page):
 
     box.MouseDoubleClick += lambda *_: reveal()
     page.actions(
-        ("Показать в Проводнике", reveal),
-        ("В корзину Хаба", lambda: _remove(page, "bigfiles", page.selected(box, state["items"]), "trash", refresh)),
-        ("Удалить навсегда", lambda: _remove(page, "bigfiles", page.selected(box, state["items"]), "delete", refresh)),
+        (tr("Show in File Explorer", "Показать в Проводнике"), reveal),
+        (tr("Move to Hub Trash", "В корзину Хаба"), lambda: _remove(page, "bigfiles", page.selected(box, state["items"]), "trash", refresh)),
+        (tr("Delete permanently", "Удалить навсегда"), lambda: _remove(page, "bigfiles", page.selected(box, state["items"]), "delete", refresh)),
     )
 
 def _disk_chart(canvas, entries, activate):
@@ -512,7 +545,7 @@ def _disk_chart(canvas, entries, activate):
     shown = entries[:9]
     if len(entries) > len(shown):
         rest = sum(item["size"] for item in entries[len(shown):])
-        shown = [*shown, {"name": "Остальное", "kind": "rest", "size": rest}]
+        shown = [*shown, {"name": tr("Other", "Остальное"), "kind": "rest", "size": rest}]
     angle = -pi / 2
 
     def polar(radius, radians):
@@ -545,11 +578,11 @@ def _disk_chart(canvas, entries, activate):
 
 
 def _diskmap(page):
-    from System.Windows import Visibility
+    from System.Windows import HorizontalAlignment, Visibility
     from System.Windows.Controls import Canvas
     from System.Windows.Input import Key
 
-    folder = page.folder("Папка или диск", page.default_folder)
+    folder = page.folder(tr("Folder or drive", "Папка или диск"), page.default_folder)
     state = {"data": None, "files": [], "files_open": False, "limit": 100}
 
     def refresh(status=""):
@@ -567,20 +600,23 @@ def _diskmap(page):
         if drive:
             scan(drive)
         else:
-            page.notice("Укажи диск или полный путь к папке.")
+            page.notice(tr("Enter a drive or a full folder path.", "Укажи диск или полный путь к папке."))
 
     page.actions(
-        ("Посчитать размеры", lambda: scan(_target(page, folder)), True),
-        ("На уровень выше", parent),
-        ("Посчитать весь диск", root_drive),
-        ("Вернуть последний перенос", _undo(page, "diskmap", refresh)),
+        (tr("Calculate sizes", "Посчитать размеры"), lambda: scan(_target(page, folder)), True),
+        (tr("Up one level", "На уровень выше"), parent),
+        (tr("Scan entire drive", "Посчитать весь диск"), root_drive),
+        (tr("Undo last move", "Вернуть последний перенос"), _undo(page, "diskmap", refresh)),
     )
     summary = page.text("", muted=True)
     chart = Canvas()
+    chart.Width = 152
     chart.Height = 152
+    chart.HorizontalAlignment = HorizontalAlignment.Center
     chart.Visibility = Visibility.Collapsed
     page.add(chart)
     folders_box = page.rows(max_height=220)
+    folders_box.Visibility = Visibility.Collapsed
 
     def activate(item):
         if item["kind"] == "files":
@@ -594,7 +630,7 @@ def _diskmap(page):
         if chosen:
             activate(chosen[0])
         else:
-            page.notice("Выбери строку карты.")
+            page.notice(tr("Select a row in the disk map.", "Выбери строку карты."))
 
     def open_folder():
         if state["data"]:
@@ -603,9 +639,9 @@ def _diskmap(page):
             _open(page, _target(page, folder))
 
     page.actions(
-        ("Открыть выбранную строку", open_selection),
-        ("Файлы в этой папке", lambda: open_files()),
-        ("Показать папку в Проводнике", open_folder),
+        (tr("Open selected item", "Открыть выбранную строку"), open_selection),
+        (tr("Files in this folder", "Файлы в этой папке"), lambda: open_files()),
+        (tr("Show folder in File Explorer", "Показать папку в Проводнике"), open_folder),
     )
 
     file_summary = page.text("", muted=True)
@@ -615,14 +651,12 @@ def _diskmap(page):
     def render_files():
         visible = state["files"][:state["limit"]] if state["files_open"] else []
         count = len(state["files"])
-        shown = state["files_open"]
-        if shown and files_box.Visibility != Visibility.Visible:
-            files_box.Visibility = Visibility.Visible
-            page.hub.animate(files_box)
-        elif not shown:
-            files_box.Visibility = Visibility.Collapsed
-        file_summary.Text = f"Файлы в этой папке · Показано {len(visible)} из {count}" if state["files_open"] else ""
+        file_summary.Text = tr(f"Files in this folder · Showing {len(visible)} of {count}",
+                               f"Файлы в этой папке · Показано {len(visible)} из {count}") if state["files_open"] else ""
+        files_box.Visibility = Visibility.Visible if state["files_open"] else Visibility.Collapsed
         page.show_rows(files_box, visible, _file_line)
+        if state["files_open"]:
+            page.hub.animate(files_box, "sheet")
 
     def more_files():
         if state["files_open"] and state["limit"] < len(state["files"]):
@@ -635,7 +669,7 @@ def _diskmap(page):
 
     def open_files():
         if not state["data"]:
-            page.notice("Сначала посчитай размеры папки.")
+            page.notice(tr("Calculate the folder sizes first.", "Сначала посчитай размеры папки."))
             return
         body = {"folder": state["data"]["folder"]}
 
@@ -645,7 +679,7 @@ def _diskmap(page):
             if warnings := _warnings(listing):
                 page.notice(warnings)
 
-        page.run(lambda: page.post("/api/diskmap/files", body), done, "Открываю список файлов…")
+        page.run(lambda: page.post("/api/diskmap/files", body), done, tr("Opening file list…", "Открываю список файлов…"))
 
     def selected_files():
         if not state["files_open"]:
@@ -669,24 +703,31 @@ def _diskmap(page):
             data, listing = result
             state.update(data=data, files=listing.get("files", []), files_open=include_files, limit=100)
             folder.Text = data["folder"]
-            summary.Text = (
-                f"{data['folder']}\n{_size(data['total'])} · Папок: {data['dirs']} · Файлов: {data['files']}"
-            )
+            counts = tr(f"{data['dirs']} folders · {data['files']} files",
+                        f"Папок: {data['dirs']} · Файлов: {data['files']}")
+            summary.Text = f"{data['folder']}\n{_size(data['total'])} · {counts}"
 
             def line(item):
                 ratio = item["size"] / data["total"] if data["total"] else 0
-                return f"{item['name']}  ·  {_size(item['size'])}  ·  {ratio:.1%}  ·  Файлов: {item['count']}"
+                count = tr(f"{item['count']} files", f"Файлов: {item['count']}")
+                return f"{item['name']}  ·  {_size(item['size'])}  ·  {ratio:.1%}  ·  {count}"
 
             _disk_chart(chart, data["entries"], activate)
+            if chart.Visibility == Visibility.Visible:
+                page.hub.animate(chart, "chart")
             folders_box.SelectedIndex = -1
             files_box.SelectedIndex = -1
             page.show_rows(folders_box, data["entries"], line)
+            folders_box.Visibility = Visibility.Visible
+            if not data["entries"]:
+                folders_box.Items.Add(tr("This folder is empty.", "В этой папке ничего нет."))
+            page.hub.animate(folders_box, "sheet")
             render_files()
             notice = "\n".join(filter(None, (status, _warnings(data), _warnings(listing))))
             if notice:
                 page.notice(notice)
 
-        page.run(work, done, "Считаю размеры…")
+        page.run(work, done, tr("Calculating sizes…", "Считаю размеры…"))
 
     def on_enter(event, action):
         if event.Key == Key.Enter:
@@ -697,21 +738,21 @@ def _diskmap(page):
     folders_box.KeyDown += lambda sender, event: on_enter(event, open_selection)
     files_box.MouseDoubleClick += lambda *_: reveal_file()
     page.actions(
-        ("Показать ещё файлы", more_files),
-        ("Скрыть файлы", hide_files),
-        ("Показать файл в Проводнике", reveal_file),
+        (tr("Show more files", "Показать ещё файлы"), more_files),
+        (tr("Hide file list", "Скрыть файлы"), hide_files),
+        (tr("Show file in File Explorer", "Показать файл в Проводнике"), reveal_file),
     )
     page.actions(
-        ("Файл в корзину Хаба", lambda: _remove(page, "diskmap", selected_files(), "trash", refresh)),
-        ("Удалить файл навсегда", lambda: _remove(page, "diskmap", selected_files(), "delete", refresh)),
+        (tr("Move file to Hub Trash", "Файл в корзину Хаба"), lambda: _remove(page, "diskmap", selected_files(), "trash", refresh)),
+        (tr("Delete file permanently", "Удалить файл навсегда"), lambda: _remove(page, "diskmap", selected_files(), "delete", refresh)),
     )
 
 
 def _cleanup(page):
-    folder = page.folder("Папка для уборки", page.default_folder)
+    folder = page.folder(tr("Folder to clean up", "Папка для уборки"), page.default_folder)
     periods = (90, 180, 365, 730)
-    age = page.choice("Файлы старше", ["3 месяцев", "6 месяцев", "1 года", "2 лет"], 2)
-    junk = page.check("Искать мусор и временные файлы", True)
+    age = page.choice(tr("Files older than", "Файлы старше"), [tr("3 months", "3 месяцев"), tr("6 months", "6 месяцев"), tr("1 year", "1 года"), tr("2 years", "2 лет")], 2)
+    junk = page.check(tr("Find junk and temporary files", "Искать мусор и временные файлы"), True)
     state = {"data": {}, "request": None, "items": [], "limit": 500}
 
     def refresh(status=""):
@@ -721,15 +762,15 @@ def _cleanup(page):
             page.notice(status)
 
     page.actions(
-        ("Найти кандидатов на уборку", lambda: scan({
+        (tr("Scan for cleanup candidates", "Найти кандидатов на уборку"), lambda: scan({
             "folder": _target(page, folder), "age_days": periods[age.SelectedIndex],
             "include_junk": bool(junk.IsChecked),
         }), True),
-        ("Вернуть последнюю уборку", _undo(page, "cleanup", refresh)),
+        (tr("Undo last cleanup", "Вернуть последнюю уборку"), _undo(page, "cleanup", refresh)),
     )
     summary = page.text("", muted=True)
     groups = ("old", "junk", "empty")
-    category = page.choice("Показать", ["Старые файлы", "Мусор и кэш", "Пустые папки"])
+    category = page.choice(tr("Show", "Показать"), [tr("Old files", "Старые файлы"), tr("Junk and cache", "Мусор и кэш"), tr("Empty folders", "Пустые папки")])
     count = page.text("", muted=True)
     box = page.rows(multiple=True)
     pick = _Selection(page, box, _file_line)
@@ -738,7 +779,7 @@ def _cleanup(page):
         group = groups[category.SelectedIndex]
         items = state["data"].get(group, [])
         pick.show(items[:state["limit"]])
-        count.Text = f"Показано {len(pick.visible)} из {len(items)}." if state["data"] else ""
+        count.Text = tr(f"Showing {len(pick.visible)} of {len(items)}.", f"Показано {len(pick.visible)} из {len(items)}.") if state["data"] else ""
 
     def new_category(*_):
         state["limit"] = 500
@@ -753,8 +794,10 @@ def _cleanup(page):
             state["request"] = {**body, "folder": data["folder"]}
             folder.Text = data["folder"]
             summary.Text = (
-                f"Старые файлы: {_size(data['old_size'])} · Мусор: {_size(data['junk_size'])} "
-                f"· Пустые папки: {len(data['empty'])} · Проверено: {data['scanned']}"
+                tr(
+                    f"Old files: {_size(data['old_size'])} · Junk: {_size(data['junk_size'])} · Empty folders: {len(data['empty'])} · Checked: {data['scanned']}",
+                    f"Старые файлы: {_size(data['old_size'])} · Мусор: {_size(data['junk_size'])} · Пустые папки: {len(data['empty'])} · Проверено: {data['scanned']}",
+                )
             )
             pick.select([])
             new_category()
@@ -762,7 +805,7 @@ def _cleanup(page):
             if notice:
                 page.notice(notice)
 
-        page.run(lambda: page.post("/api/cleanup/scan", body), done, "Ищу, что можно убрать…")
+        page.run(lambda: page.post("/api/cleanup/scan", body), done, tr("Looking for items to clean up…", "Ищу, что можно убрать…"))
 
     def more():
         state["limit"] += 500
@@ -778,16 +821,16 @@ def _cleanup(page):
 
     category.SelectionChanged += new_category
     page.actions(
-        ("Выбрать видимые", mark_visible),
-        ("Снять отметки", lambda: pick.select([])),
-        ("Показать ещё", more),
+        (tr("Select visible", "Выбрать видимые"), mark_visible),
+        (tr("Clear selection", "Снять отметки"), lambda: pick.select([])),
+        (tr("Show more", "Показать ещё"), more),
     )
     page.actions(
-        ("Выбранное в корзину Хаба", lambda: remove("trash"), True),
-        ("Удалить выбранное навсегда", lambda: remove("delete")),
+        (tr("Move selected to Hub Trash", "Выбранное в корзину Хаба"), lambda: remove("trash"), True),
+        (tr("Delete selected permanently", "Удалить выбранное навсегда"), lambda: remove("delete")),
     )
-    suffixes = page.field("Расширения мусора через запятую")
-    names = page.field("Имена мусорных файлов через запятую")
+    suffixes = page.field(tr("Junk file extensions, separated by commas", "Расширения мусора через запятую"))
+    names = page.field(tr("Junk filenames, separated by commas", "Имена мусорных файлов через запятую"))
     rules_loaded = False
 
     def show_rules(data):
@@ -797,27 +840,30 @@ def _cleanup(page):
         rules_loaded = True
 
     def load_rules():
-        page.run(lambda: page.get("/api/cleanup/rules"), show_rules, "Загружаю правила мусора…")
+        page.run(lambda: page.get("/api/cleanup/rules"), show_rules, tr("Loading junk rules…", "Загружаю правила мусора…"))
 
     def save_rules(reset=False):
-        if reset and not page.confirm("Вернуть правила по умолчанию?", "Твои имена и расширения будут заменены."):
+        if reset and not page.confirm(tr("Restore the default rules?", "Вернуть правила по умолчанию?"), tr(
+            "Your filenames and extensions will be replaced.",
+            "Твои имена и расширения будут заменены.",
+        )):
             return
         if not reset and not rules_loaded:
-            page.notice("Сначала загрузи текущие правила.")
+            page.notice(tr("Load the current rules first.", "Сначала загрузи текущие правила."))
             return
         rules = {"suffixes": _csv(str(suffixes.Text)), "names": _csv(str(names.Text))}
         body = {"reset": True} if reset else {"rules": rules}
 
         def done(data):
             show_rules(data)
-            refresh("Правила уборки сохранены.")
+            refresh(tr("Cleanup rules saved.", "Правила уборки сохранены."))
 
-        page.run(lambda: page.post("/api/cleanup/rules", body), done, "Сохраняю правила мусора…")
+        page.run(lambda: page.post("/api/cleanup/rules", body), done, tr("Saving junk rules…", "Сохраняю правила мусора…"))
 
     page.actions(
-        ("Загрузить правила мусора", load_rules),
-        ("Сохранить правила мусора", save_rules),
-        ("По умолчанию", lambda: save_rules(True)),
+        (tr("Load junk rules", "Загрузить правила мусора"), load_rules),
+        (tr("Save junk rules", "Сохранить правила мусора"), save_rules),
+        (tr("Defaults", "По умолчанию"), lambda: save_rules(True)),
     )
 
 

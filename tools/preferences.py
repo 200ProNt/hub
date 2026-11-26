@@ -11,17 +11,30 @@ from pathlib import Path
 from tools import paths
 
 OPTIONS = {
-    "hub-theme": {"light", "dark"},
+    "hub-language": {"en", "ru"},
+    "hub-theme": {"auto", "light", "dark"},
     "hub-style": {"glass", "material"},
     "hub-motion": {"on", "off"},
     "hub-glass": {"on", "off"},
     "desktop-glass": {"on", "off"},
     "hub-sound": {"on", "off"},
-    "hub-accent": {"", "emerald", "ocean", "sunset", "pink"},
+    "hub-accent": {"", "graphite", "ocean", "emerald", "lavender", "sand", "sunset", "pink"},
     "hub-onboarded": {"1"},
     "tray": {"on", "off"},
 }
 _lock = threading.RLock()
+
+
+def system_theme():
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
+            light, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+    except (ImportError, OSError):
+        return "light"
+    return "light" if light else "dark"
 
 
 def read() -> dict:

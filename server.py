@@ -50,10 +50,28 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.5.3"
+VERSION = "1.5.3.1"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.5.3.1",
+        "date": "2026-11-26",
+        "title": "Язык, палитры и главная",
+        "title_en": "Language, palettes, and Home",
+        "items": [
+            "В настройках можно выбрать английский или русский язык. Для новых профилей выбран английский.",
+            "Режим «Авто (Windows)» следует системной теме. Обновлены акценты, а Material You помечена как бета.",
+            "Новая главная показывает задачи, буфер обмена, загрузку процессора и памяти. Диаграмма карты диска плавно раскрывается.",
+            "Установщик обновляет иконки ярлыков на рабочем столе и в меню «Пуск».",
+        ],
+        "items_en": [
+            "Choose English or Russian in Settings. New profiles start in English.",
+            "Auto (Windows) follows the system theme. Accent palettes are refreshed and Material You is marked as beta.",
+            "Home shows tasks, clipboard history, CPU, and memory. The Disk Map chart unfolds into a ring.",
+            "Setup refreshes the icons of desktop and Start menu shortcuts.",
+        ],
+    },
     {
         "version": "1.5.3",
         "date": "2026-11-26",
@@ -62,6 +80,12 @@ CHANGELOG = [
             "Чёрно-белая H стала иконкой Hub в Windows и браузере.",
             "Внутри Hub логотип меняет цвет вместе с выбранным акцентом.",
             "Сборка установщика использует системные пути Windows для поиска DLL.",
+        ],
+        "title_en": "New Hub icon",
+        "items_en": [
+            "The black-and-white H is now the Hub icon in Windows and the browser.",
+            "Inside Hub, the logo follows your selected accent color.",
+            "The installer build uses Windows system paths to resolve DLLs.",
         ],
     },
     {
@@ -72,6 +96,11 @@ CHANGELOG = [
             "Кнопки, навигация и поиск получили прямоугольную форму с мягкими углами.",
             "Скругление карточек, меню и списков стало меньше.",
         ],
+        "title_en": "Softer Material You corners",
+        "items_en": [
+            "Buttons, navigation, and search now have rectangular shapes with rounded corners.",
+            "Cards, menus, and lists use smaller corner radii.",
+        ],
     },
     {
         "version": "1.5.2.5",
@@ -80,6 +109,11 @@ CHANGELOG = [
         "items": [
             "Кнопки, поля ввода и списки в настольной теме используют библиотеку Material Design 3 для WPF.",
             "Шрифт Roboto, просторная навигация, строка поиска и цветная карточка быстрой записи.",
+        ],
+        "title_en": "Material You components",
+        "items_en": [
+            "Buttons, fields, and drop-down lists in the desktop theme use Material Design 3 for WPF.",
+            "Roboto, more spacious navigation, a search field, and a colored Quick Capture card.",
         ],
     },
     {
@@ -90,6 +124,12 @@ CHANGELOG = [
             "Material You подбирает оттенки панелей и кнопок под акцент Windows или выбранный тобой цвет.",
             "В Liquid Glass боковая панель получила направленный блик, а карточки — плотную подложку.",
             "Обновлены переходы между экранами, появление поиска и отклик элементов управления.",
+        ],
+        "title_en": "Color, glass, and motion",
+        "items_en": [
+            "Material You uses the Windows accent or your selected color for panels and buttons.",
+            "The Liquid Glass sidebar gains a directional highlight, with solid backgrounds behind card text.",
+            "Updated page transitions, search entrance, and control feedback.",
         ],
     },
     {
@@ -102,6 +142,13 @@ CHANGELOG = [
             "Обновлённый мониторинг ПК с возможностью свернуть окно выбранного приложения.",
             "Проверка релизов GitHub, установка обновления из Hub и экран «Что нового».",
         ],
+        "title_en": "Appearance and updates",
+        "items_en": [
+            "Material You and Liquid Glass change the Hub palette, panels, and control shapes.",
+            "New transitions, rounded QR codes, and the familiar four-square icon.",
+            "PC Monitor can minimize windows for the selected application.",
+            "Check GitHub releases, install updates from Hub, and see what's new.",
+        ],
     },
     {
         "version": "1.5.0",
@@ -109,6 +156,11 @@ CHANGELOG = [
         "items": [
             "Нативные экраны Hub на WPF для Windows 11.",
             "Прозрачный акриловый материал окна, собственный логотип и контурные иконки.",
+        ],
+        "title_en": "Native Windows interface",
+        "items_en": [
+            "Native WPF screens for Windows 11.",
+            "Translucent acrylic window, custom logo, and outline icons.",
         ],
     },
     {
@@ -119,6 +171,12 @@ CHANGELOG = [
             "Компактная панель инструментов, светлая и тёмная темы, навигация с клавиатуры.",
             "Перенос заметок, истории буфера, корзины и настроек из браузерной версии.",
         ],
+        "title_en": "Desktop Hub for Windows",
+        "items_en": [
+            "A dedicated Windows 11 window, launch from a shortcut, and quick search from the tray.",
+            "Compact tool navigation, light and dark themes, and keyboard navigation.",
+            "Migrate notes, clipboard history, Trash, and settings from the browser version.",
+        ],
     },
     {
         "version": "1.3.2.1",
@@ -127,6 +185,12 @@ CHANGELOG = [
             "Хотфикс QR-Drop: устранена циклическая ошибка 'Cannot set properties of null' при переходе между вкладками; таймер автообновления корректно очищается при размонтировании.",
             "Надёжная интеграция с треем Windows: поток трея автоматически подключается к интерактивному рабочему столу Windows Default, гарантируя появление иконки рядом с часами.",
             "Глобальный хоткей Ctrl+Alt+H: регистрация надёжной системной комбинации клавиш (с альтернативой Alt+Shift+H), открывающей быстрый поиск и команды из любой программы поверх всех окон.",
+        ],
+        "title_en": "Phone transfer and Windows integration fixes",
+        "items_en": [
+            "Fixed a recurring QR-Drop error when switching tabs. Automatic refresh stops when the page closes.",
+            "The tray worker attaches to the interactive Windows desktop so the icon appears beside the clock.",
+            "Ctrl+Alt+H opens quick search and commands from any app, with Alt+Shift+H as a fallback.",
         ],
     },
     {
@@ -139,6 +203,14 @@ CHANGELOG = [
             "Пакетное переименование файлов (Batch Renamer): массовое переименование по правилам (замена, нумерация, регистр, транслитерация, даты) с живым предпросмотром, защитой от коллизий и отменой (Undo).",
             "Хэши и безопасность файлов (Checksum & Crypto): расчет контрольных сумм SHA-256, MD5, SHA-1 потоковым чтением, проверка подлинности файлов и генератор надёжных паролей.",
         ],
+        "title_en": "Tray, phone transfer, and file tools",
+        "items_en": [
+            "Windows tray icon with shortcuts for opening Hub, adding a note, checking PC Monitor, using QR-Drop, or quitting.",
+            "Use Win+Alt+H or Ctrl+Shift+H to open Hub above other windows.",
+            "Local Wi-Fi transfer for text and files between your phone and PC using a QR code.",
+            "Batch file renaming with rules, live previews, collision checks, and undo.",
+            "Stream file data to compute SHA-256, MD5, or SHA-1, verify checksums, and generate strong passwords.",
+        ],
     },
     {
         "version": "1.3.1.2",
@@ -147,6 +219,11 @@ CHANGELOG = [
             "Хотфикс полей поиска и ввода: устранено паразитное наложение двойных рамок, фона и скругления на текстовые поля внутри строки поиска (Мониторинг, Буфер обмена, Дубликаты, Сортировка) в режиме стекла (Acrylic Glass).",
             "Изоляция составных элементов: контейнеры поиска и выбора получили единое аккуратное закругление, а внутренние input-элементы остаются полностью прозрачными и бесшовными.",
         ],
+        "title_en": "Search and input fixes",
+        "items_en": [
+            "Fixed doubled backgrounds, borders, and corners inside search fields in Acrylic Glass mode.",
+            "Search and picker containers now have consistent corners, with transparent inputs inside.",
+        ],
     },
     {
         "version": "1.3.1.1",
@@ -154,6 +231,11 @@ CHANGELOG = [
         "items": [
             "Хотфикс бокового меню: закреплена боковая панель (position: fixed / sticky) — теперь меню зафиксировано на весь экран и больше не уезжает вниз при прокрутке длинных списков.",
             "Редизайн карточек настроек и стекла: убраны некрасивые острые прямоугольные рамки, карточки параметров стали элегантными с мягким закруглением (border-radius: 14px), компактными переключателями-пилюлями и гармоничными отступами.",
+        ],
+        "title_en": "Sidebar and settings refinements",
+        "items_en": [
+            "The sidebar stays visible when long lists scroll.",
+            "Settings use rounded cards, compact switches, and adjusted spacing.",
         ],
     },
     {
@@ -164,6 +246,12 @@ CHANGELOG = [
             "Настоящий Fluent Acrylic Glassmorphism: реалистичное матовое стекло Windows 11 с многослойным размытием, микро-текстурой шума (noise texture), световыми бликами на гранях и глубоким свечением фонового градиента.",
             "Быстрый поиск настроек: открытие окна параметров прямо через глобальный поиск по Ctrl+K.",
         ],
+        "title_en": "Settings and Acrylic Glass",
+        "items_en": [
+            "Settings moved to a dedicated panel, opened with Ctrl+,.",
+            "Added a Windows 11-inspired Acrylic Glass theme with layered blur, fine texture, edge highlights, and a background gradient.",
+            "Open Settings from quick search with Ctrl+K.",
+        ],
     },
     {
         "version": "1.3.0",
@@ -172,6 +260,12 @@ CHANGELOG = [
             "Кастомизация UI в стиле Windows 11 Fluent Design: выбор акцентных цветов (Cyber Purple, Hacker Emerald, Ocean Blue, Sunset Orange, Neon Pink) и эффект матового стекла (Glassmorphism / Acrylic blur).",
             "Главный экран — Дашборд: новый стартовый раздел со сводкой дня, живыми виджетами CPU/RAM, интерактивными задачами To-Do, последними записями буфера и быстрыми действиями.",
             "Микро-звуки интерфейса: мягкие тактильные звуковые щелчки и переливы на Web Audio API (копирование, выполнение задач, удаление, переключение) с возможностью отключения.",
+        ],
+        "title_en": "Dashboard and appearance",
+        "items_en": [
+            "Windows 11 Fluent-inspired appearance with accent choices and acrylic blur.",
+            "New Home dashboard with a daily summary, live CPU and RAM, tasks, recent clipboard entries, and quick actions.",
+            "Optional Web Audio feedback for copying, completing tasks, deleting, and switching.",
         ],
     },
     {
@@ -184,6 +278,14 @@ CHANGELOG = [
             "Сравнение папок: двусторонняя синхронизация — копирование недостающих файлов и папок в один клик прямо из отчёта сравнения.",
             "Интеграция с Windows: безопасное выключение сервера Hub в один клик из интерфейса и создание полного резервного ZIP-архива всех данных (папка data/) для переноса.",
         ],
+        "title_en": "Image tools and workflow improvements",
+        "items_en": [
+            "Convert, compress, resize, paste, and save images in PNG, JPEG, or WebP.",
+            "Notes support clickable Markdown checkboxes, formatting, and hashtag filters.",
+            "Clipboard filters for pinned entries and snippets, custom snippets, and text formatting.",
+            "Copy missing files and folders in either direction from the comparison report.",
+            "Quit the Hub server from the interface and export a complete ZIP backup.",
+        ],
     },
     {
         "version": "1.2.5",
@@ -195,6 +297,14 @@ CHANGELOG = [
             "Сортировка и Уборка: интерактивная настройка правил — добавление своих категорий, расширений и мусорных файлов прямо из интерфейса.",
             "Интеграция с Windows: создание и удаление ярлыков на Рабочем столе и в меню «Пуск» в один клик.",
         ],
+        "title_en": "Clipboard, monitoring, and note exports",
+        "items_en": [
+            "Filter clipboard entries by content type and see word and character counts.",
+            "Live CPU and RAM charts show the last 30 PC Monitor readings.",
+            "Export individual notes or the whole collection as Markdown or TXT.",
+            "Edit sorter and cleanup rules, including categories, extensions, and junk filenames.",
+            "Create or remove Windows desktop and Start menu shortcuts from Hub.",
+        ],
     },
     {
         "version": "1.2.0.1",
@@ -202,6 +312,11 @@ CHANGELOG = [
         "items": [
             "Хотфикс запуска: исправлен скрипт start.bat (устранена ошибка парсинга команд 'EXE' / 'ATA\\Programs' из-за несовместимости переводов строк и многострочных блоков в cmd.exe).",
             "Улучшен поиск Python: поддержка путей с пробелами (Program Files), py launcher и принудительный CRLF через .gitattributes.",
+        ],
+        "title_en": "Startup fixes",
+        "items_en": [
+            "Fixed start.bat parsing in cmd.exe for multiline blocks and line endings.",
+            "Improved Python discovery, with support for paths containing spaces, the Python launcher, and enforced CRLF.",
         ],
     },
     {
@@ -213,12 +328,23 @@ CHANGELOG = [
             "Защита от сканирования: блокировка доступа к системным папкам Windows и корню диска во всех инструментах.",
             "Защита заметок и буфера: синхронизация fsync от сбоев питания, автосохранение копий .bak и резервирование повреждённых файлов.",
         ],
+        "title_en": "Security and data protection",
+        "items_en": [
+            "Respect ExcludeClipboardContent and skip sensitive clipboard items such as keys and tokens.",
+            "Protect the HTTP API from cross-site requests and DNS rebinding by checking Host, Origin, and Sec-Fetch-Site.",
+            "Block scans of Windows system folders and drive roots.",
+            "Flush note and clipboard writes to disk, make automatic .bak copies, and keep corrupted files for recovery.",
+        ],
     },
     {
         "version": "1.1.1",
         "date": "2026-11-17",
         "items": [
             "В «О программе» появилась история версий: что менялось и когда.",
+        ],
+        "title_en": "Release history",
+        "items_en": [
+            "About now lists previous versions, changes, and dates.",
         ],
     },
     {
@@ -229,12 +355,22 @@ CHANGELOG = [
             "Поиск по всему хабу по Ctrl+K: инструменты, заметки и буфер обмена.",
             "Автозапуск вместе с Windows переключателем внизу меню.",
         ],
+        "title_en": "Trash, quick search, and startup",
+        "items_en": [
+            "A separate Trash page lists each move with restore and permanent deletion actions.",
+            "Find tools, notes, and clipboard history from quick search with Ctrl+K.",
+            "Turn Windows startup on or off from the sidebar.",
+        ],
     },
     {
         "version": "1.0.0",
         "date": "2026-11-17",
         "items": [
             "Первая версия: буфер обмена, заметки, сортировка файлов, дубликаты, карта диска, сравнение папок, уборка, мониторинг ПК и «О программе».",
+        ],
+        "title_en": "First release",
+        "items_en": [
+            "Clipboard history, notes, file sorting, duplicate files, disk map, folder comparison, cleanup, PC Monitor, and About.",
         ],
     },
 ]
@@ -334,7 +470,15 @@ def home_summary() -> dict:
         pass
 
     try:
-        vitals = monitor.snapshot().get("vitals", {})
+        snapshot = monitor.snapshot()
+        system = snapshot.get("system", {}) if snapshot.get("ready") else {}
+        memory = system.get("memory", {})
+        vitals = {
+            "cpu_percent": system.get("cpu"),
+            "memory_percent": memory.get("percent") if memory.get("total") else None,
+            "memory_used_gb": round(memory.get("used", 0) / 1024**3, 1),
+            "memory_total_gb": round(memory.get("total", 0) / 1024**3, 1),
+        } if system else {}
     except Exception:
         vitals = {}
 
@@ -894,7 +1038,7 @@ class HubHandler(BaseHTTPRequestHandler):
         desktop = getattr(self.server, "desktop", False)
         if desktop and path == "/api/desktop/preferences":
             settings = preferences.update(body)
-            if "hub-theme" in body:
+            if preferences.OPTIONS.keys() & body.keys():
                 self.server.apply_theme(settings.get("hub-theme") == "dark")
             return settings
 

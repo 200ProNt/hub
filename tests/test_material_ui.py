@@ -7,14 +7,24 @@ from unittest.mock import patch
 class MaterialThemeTests(unittest.TestCase):
     def test_live_theme_change_restores_glass_and_preserves_field_value(self):
         from native.ui import ApartmentState, HubWindow, Page, Thread, ThreadStart
+        from System.Windows.Automation import AutomationProperties
+        from System.Windows.Controls import ComboBox, StackPanel
 
         errors = []
 
         def check():
             try:
                 state = {"hub-style": "glass", "hub-motion": "off"}
-                with patch("native.ui.preferences.read", return_value=state), patch.object(Page, "run"):
+                with (patch("native.ui.preferences.read", return_value=state),
+                      patch("native.ui.preferences.update", side_effect=state.update),
+                      patch("native.ui.preferences.system_theme", return_value="light") as system_theme,
+                      patch.object(Page, "run")):
                     hub = HubWindow(1, "test", "")
+                    self.assertEqual(hub.theme, "light")
+                    self.assertEqual(AutomationProperties.GetName(hub.navigation["home"]), "Home")
+                    system_theme.return_value = "dark"
+                    hub.refresh_system_theme()
+                    self.assertEqual(hub.theme, "dark")
                     field = hub.widget("SearchInput")
                     field.Text = "Поиск"
                     original = field.Style
@@ -34,6 +44,19 @@ class MaterialThemeTests(unittest.TestCase):
                         state["hub-style"] = "glass"
                         hub.apply_theme()
                         self.assertEqual(field.Style, original)
+                    hub.go("settings")
+
+                    def language_choice():
+                        return next(control for row in hub.current.panel.Children if isinstance(row, StackPanel)
+                                    for control in row.Children if isinstance(control, ComboBox))
+
+                    self.assertEqual(language_choice().SelectedIndex, 0)
+                    language_choice().SelectedIndex = 1
+                    self.assertEqual(state["hub-language"], "ru")
+                    self.assertEqual(AutomationProperties.GetName(hub.navigation["home"]), "Главная")
+                    self.assertEqual(language_choice().SelectedIndex, 1)
+                    language_choice().SelectedIndex = 0
+                    self.assertEqual(AutomationProperties.GetName(hub.navigation["home"]), "Home")
                     hub.window.Close()
             except BaseException as error:
                 errors.append(error)

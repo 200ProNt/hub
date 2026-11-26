@@ -228,11 +228,17 @@ const preferences = typeof HubPreferences !== "undefined" ? HubPreferences : {
   set: (key, value) => localStorage.setItem(key, value),
 };
 
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  document.getElementById("themeLabel").textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
+const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)");
+let themeMode = "auto";
+
+function applyTheme(theme, save = true) {
+  themeMode = ["dark", "light"].includes(theme) ? theme : "auto";
+  document.documentElement.dataset.theme = themeMode === "auto" ? (systemTheme?.matches ? "dark" : "light") : themeMode;
+  const selector = document.getElementById("themeBtn");
+  if (selector) selector.value = themeMode;
+  if (!save) return;
   try {
-    preferences.set("hub-theme", theme);
+    preferences.set("hub-theme", themeMode);
   } catch {
     /* localStorage может быть недоступен */
   }
@@ -245,7 +251,10 @@ function initTheme() {
   } catch {
     saved = null;
   }
-  applyTheme(saved || (window.hubDesktopState && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  applyTheme(saved, false);
+  systemTheme?.addEventListener?.("change", () => {
+    if (themeMode === "auto") applyTheme(themeMode, false);
+  });
 }
 
 /* ---------- Движение ---------- */
@@ -381,7 +390,7 @@ function applyGlass(enabled) {
     document.documentElement.dataset.glass = enabled ? "on" : "off";
   }
   const label = document.getElementById("glassLabel");
-  if (label) label.textContent = enabled ? "Liquid Glass" : "Material You";
+  if (label) label.textContent = enabled ? "Liquid Glass" : "Material You (beta)";
   const btn = document.getElementById("glassBtn");
   if (btn && btn.setAttribute) btn.setAttribute("aria-pressed", String(enabled));
   try {
@@ -856,9 +865,7 @@ async function init() {
 
   const themeBtn = document.getElementById("themeBtn");
   if (themeBtn && themeBtn.addEventListener) {
-    themeBtn.addEventListener("click", () => {
-      applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-    });
+    themeBtn.addEventListener("change", () => applyTheme(themeBtn.value));
   }
 
   const motionBtn = document.getElementById("motionBtn");

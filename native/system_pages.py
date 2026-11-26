@@ -17,21 +17,23 @@ from System.Windows.Shapes import Polyline
 from System.Windows.Threading import DispatcherTimer
 
 from tools import paths
+from tools.i18n import tr
+
 from .widgets import label, make
 
 
 def _size(value):
     size = float(value or 0)
-    units = ("Б", "КБ", "МБ", "ГБ", "ТБ")
+    units = tr(("B", "KB", "MB", "GB", "TB"), ("Б", "КБ", "МБ", "ГБ", "ТБ"))
     for unit in units[:-1]:
         if size < 1024:
-            return f"{size:g} {unit}" if unit == "Б" else f"{size:.1f} {unit}"
+            return f"{size:g} {unit}" if unit == units[0] else f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} {units[-1]}"
 
 
 def _date(timestamp):
-    return datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y %H:%M") if timestamp else ""
+    return datetime.fromtimestamp(timestamp).strftime(tr("%Y-%m-%d %H:%M", "%d.%m.%Y %H:%M")) if timestamp else ""
 
 
 def _selected(page, box, items, label):
@@ -110,16 +112,19 @@ def _qr_bitmap(url):
 
 
 def _qrdrop(page):
-    page.text("Подключи телефон и компьютер к одной сети Wi-Fi, затем наведи камеру на QR-код.", muted=True)
+    page.text(tr(
+        "Connect your phone and computer to the same Wi-Fi network, then scan the QR code.",
+        "Подключи телефон и компьютер к одной сети Wi-Fi, затем наведи камеру на QR-код.",
+    ), muted=True)
     qr = Image()
     qr.Width = qr.Height = 207
     qr.Stretch = Stretch.Uniform
     qr.HorizontalAlignment = HorizontalAlignment.Left
     qr.Margin = Thickness(0, 3, 0, 12)
     qr.Visibility = Visibility.Collapsed
-    AutomationProperties.SetName(qr, "QR-код подключения телефона")
+    AutomationProperties.SetName(qr, tr("Phone connection QR code", "QR-код подключения телефона"))
     page.add(qr)
-    address = page.field("Адрес для телефона")
+    address = page.field(tr("Address for your phone", "Адрес для телефона"))
     address.IsReadOnly = True
     info = {"url": "", "shared_files": [], "incoming_files": [], "incoming_texts": []}
 
@@ -132,7 +137,10 @@ def _qrdrop(page):
                 qr.Visibility = Visibility.Visible
             except (ImportError, OSError, ValueError):
                 qr.Visibility = Visibility.Collapsed
-                page.notice("QR-код недоступен. Открой адрес на телефоне вручную.")
+                page.notice(tr(
+                    "The QR code is unavailable. Enter the address on your phone.",
+                    "QR-код недоступен. Открой адрес на телефоне вручную.",
+                ))
             info["url"] = url
         for key, box, formatter, identity in (
             ("shared_files", shared, format_file, lambda item: item["name"]),
@@ -173,32 +181,32 @@ def _qrdrop(page):
     def share():
         path = share_path.Text.strip()
         if not path:
-            page.notice("Выбери файл для отправки.")
+            page.notice(tr("Choose a file to send.", "Выбери файл для отправки."))
             return
-        update("/api/drop/share-file", {"path": path}, "Файл доступен на телефоне.")
+        update("/api/drop/share-file", {"path": path}, tr("The file is available on your phone.", "Файл доступен на телефоне."))
 
     def unshare():
-        item = _selected(page, shared, info["shared_files"], "Выбери файл в раздаче.")
+        item = _selected(page, shared, info["shared_files"], tr("Select a shared file.", "Выбери файл в раздаче."))
         if item:
-            update("/api/drop/unshare-file", {"name": item["name"]}, "Файл убран из раздачи.")
+            update("/api/drop/unshare-file", {"name": item["name"]}, tr("File removed from sharing.", "Файл убран из раздачи."))
 
     def open_folder():
         folder = str(paths.DATA_DIR / "incoming")
         page.run(lambda: page.post("/api/drop/open", {"path": folder}), message="")
 
     def open_incoming():
-        item = _selected(page, incoming, info["incoming_files"], "Выбери полученный файл.")
+        item = _selected(page, incoming, info["incoming_files"], tr("Select a received file.", "Выбери полученный файл."))
         if item:
             page.run(lambda: page.post("/api/open", {"path": item["path"]}), message="")
 
     def download():
-        item = _selected(page, incoming, info["incoming_files"], "Выбери полученный файл.")
+        item = _selected(page, incoming, info["incoming_files"], tr("Select a received file.", "Выбери полученный файл."))
         if item:
             query = urlencode({"name": item["name"], "type": "incoming"})
             page.download(f"/api/drop/download?{query}", item["name"])
 
     def copy_text():
-        item = _selected(page, messages, info["incoming_texts"], "Выбери сообщение.")
+        item = _selected(page, messages, info["incoming_texts"], tr("Select a message.", "Выбери сообщение."))
         if item:
             page.copy(item["text"])
 
@@ -208,58 +216,73 @@ def _qrdrop(page):
         if message_body.Text != text:
             message_body.Text = text
 
-    page.actions(("Скопировать адрес", copy_address), ("Открыть в браузере", open_web), ("Обновить", refresh))
-    page.text("Файлы для телефона", size=19)
-    share_path = page.file("Файл для отправки")
+    page.actions((tr("Copy address", "Скопировать адрес"), copy_address), (tr("Open in browser", "Открыть в браузере"), open_web), (tr(
+        "Refresh",
+        "Обновить",
+    ), refresh))
+    page.text(tr("Files for your phone", "Файлы для телефона"), size=19)
+    share_path = page.file(tr("File to send", "Файл для отправки"))
     shared = page.rows(max_height=130)
-    page.actions(("Добавить в раздачу", share, True), ("Убрать из раздачи", unshare))
-    page.text("Файлы с телефона", size=19)
+    page.actions((tr("Share file", "Добавить в раздачу"), share, True), (tr("Stop sharing", "Убрать из раздачи"), unshare))
+    page.text(tr("Files from your phone", "Файлы с телефона"), size=19)
     incoming = page.rows(max_height=160)
-    page.actions(("Открыть папку", open_folder), ("Показать в проводнике", open_incoming), ("Сохранить как…", download))
-    page.text("Текст и ссылки с телефона", size=19)
+    page.actions((tr("Open folder", "Открыть папку"), open_folder), (tr("Show in File Explorer", "Показать в проводнике"), open_incoming), (tr(
+        "Save as…",
+        "Сохранить как…",
+    ), download))
+    page.text(tr("Text and links from your phone", "Текст и ссылки с телефона"), size=19)
     messages = page.rows(max_height=180)
-    message_body = page.field("Выбранное сообщение", multiline=True)
+    message_body = page.field(tr("Selected message", "Выбранное сообщение"), multiline=True)
     message_body.IsReadOnly = True
     message_body.MaxHeight = 160
     message_body.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     messages.SelectionChanged += show_message
-    page.actions(("Скопировать сообщение", copy_text))
+    page.actions((tr("Copy message", "Скопировать сообщение"), copy_text))
     refresh()
     _poll(page, address, 4, refresh)
 
 
 _TRASH_SOURCES = {
-    "cleanup": "Уборка",
-    "diskmap": "Карта диска",
-    "bigfiles": "Большие файлы",
-    "duplicates": "Дубликаты",
-    "": "Дубликаты",
+    "cleanup": tr("Cleanup", "Уборка"),
+    "diskmap": tr("Disk Map", "Карта диска"),
+    "bigfiles": tr("Large Files", "Большие файлы"),
+    "duplicates": tr("Duplicates", "Дубликаты"),
+    "": tr("Duplicates", "Дубликаты"),
 }
 
 
 def _trash(page):
-    page.text("Файлы, перемещённые инструментами Hub, можно вернуть в исходные папки.", muted=True)
-    total = page.text("Загрузка корзины…", size=19)
+    page.text(tr(
+        "Files moved to Hub Trash can be restored to their original folders.",
+        "Файлы, перемещённые инструментами Hub, можно вернуть в исходные папки.",
+    ), muted=True)
+    total = page.text(tr("Loading Trash…", "Загрузка корзины…"), size=19)
     box = page.rows(max_height=430)
     runs = []
     summary = ""
 
     def describe(run):
-        source = _TRASH_SOURCES.get(run.get("source", ""), "Удаление файлов")
-        detail = [f"{source}  ·  {_date(run['time'])}  ·  {run['count']} шт.  ·  {_size(run['size'])}"]
+        source = _TRASH_SOURCES.get(run.get("source", ""), tr("File removal", "Удаление файлов"))
+        detail = [tr(
+            f"{source}  ·  {_date(run['time'])}  ·  {run['count']} items  ·  {_size(run['size'])}",
+            f"{source}  ·  {_date(run['time'])}  ·  {run['count']} шт.  ·  {_size(run['size'])}",
+        )]
         if run.get("folder"):
             detail.append(run["folder"])
         for item in run["items"]:
-            size = "папка" if item.get("kind") == "dir" else _size(item["size"])
+            size = tr("folder", "папка") if item.get("kind") == "dir" else _size(item["size"])
             detail.append(f"  {item['name']}  ·  {size}")
         if len(run["items"]) < run["count"]:
-            detail.append(f"  и ещё {run['count'] - len(run['items'])}")
+            detail.append(tr(f"  and {run['count'] - len(run['items'])} more", f"  и ещё {run['count'] - len(run['items'])}"))
         return "\n".join(detail)
 
     def render(data):
         nonlocal runs, summary
-        summary = f"{data['total_count']} шт.  ·  {_size(data['total_size'])}"
-        total.Text = summary if data["runs"] else "Корзина пуста"
+        summary = tr(
+            f"{data['total_count']} items  ·  {_size(data['total_size'])}",
+            f"{data['total_count']} шт.  ·  {_size(data['total_size'])}",
+        )
+        total.Text = summary if data["runs"] else tr("Trash is empty", "Корзина пуста")
         runs = _replace_rows(page, box, runs, data["runs"], describe, lambda run: run["run_id"])
 
     refresh = _loader(page, "/api/trash/runs", render)
@@ -274,25 +297,40 @@ def _trash(page):
         page.run(lambda: page.post(f"/api/trash/{route}", payload), finish)
 
     def restore():
-        run = _selected(page, box, runs, "Выбери перенос в корзине.")
+        run = _selected(page, box, runs, tr("Select a batch in Trash.", "Выбери перенос в корзине."))
         if run:
-            change("restore", {"run_id": run["run_id"]}, lambda result: f"Возвращено: {result['restored_count']} шт.")
+            change("restore", {"run_id": run["run_id"]}, lambda result: tr(
+                f"Restored: {result['restored_count']} items.",
+                f"Возвращено: {result['restored_count']} шт.",
+            ))
 
     def purge():
-        run = _selected(page, box, runs, "Выбери перенос в корзине.")
-        if run and page.confirm("Удалить навсегда?", f"Будет удалено {run['count']} шт. из выбранного переноса. Восстановить их будет нельзя."):
+        run = _selected(page, box, runs, tr("Select a batch in Trash.", "Выбери перенос в корзине."))
+        if run and page.confirm(tr("Delete permanently?", "Удалить навсегда?"), tr(
+            f"This will permanently delete {run['count']} items from the selected batch.",
+            f"Будет удалено {run['count']} шт. из выбранного переноса. Восстановить их будет нельзя.",
+        )):
             change("purge", {"run_ids": [run["run_id"]], "confirmed": True},
-                   lambda result: f"Удалено навсегда. Освобождено {_size(result['freed'])}.")
+                   lambda result: tr(
+                       f"Permanently deleted. Freed {_size(result['freed'])}.",
+                       f"Удалено навсегда. Освобождено {_size(result['freed'])}.",
+                   ))
 
     def empty():
         if not runs:
-            page.notice("Корзина пуста.")
+            page.notice(tr("Trash is empty.", "Корзина пуста."))
             return
-        if page.confirm("Очистить корзину Hub?", f"В корзине {summary}. Восстановить файлы после очистки будет нельзя."):
-            change("empty", {"confirmed": True}, lambda result: f"Корзина пуста. Освобождено {_size(result['freed'])}.")
+        if page.confirm(tr("Empty Hub Trash?", "Очистить корзину Hub?"), tr(
+            f"Trash contains {summary}. These files cannot be restored after emptying Trash.",
+            f"В корзине {summary}. Восстановить файлы после очистки будет нельзя.",
+        )):
+            change("empty", {"confirmed": True}, lambda result: tr(
+                f"Trash emptied. Freed {_size(result['freed'])}.",
+                f"Корзина пуста. Освобождено {_size(result['freed'])}.",
+            ))
 
-    page.actions(("Вернуть на место", restore, True), ("Удалить навсегда", purge),
-                 ("Очистить корзину", empty), ("Обновить", refresh))
+    page.actions((tr("Restore", "Вернуть на место"), restore, True), (tr("Delete permanently", "Удалить навсегда"), purge),
+                 (tr("Empty Trash", "Очистить корзину"), empty), (tr("Refresh", "Обновить"), refresh))
     refresh()
 
 
@@ -348,6 +386,18 @@ def _process_identity(item):
     return item["pid"], item["name"], item["creation"]
 
 
+def _process_reason(item):
+    reason = item.get("why_not", "")
+    name = item["name"]
+    english = {
+        "Это системный процесс Windows": "This is a Windows system process.",
+        "Это сам хаб — он выключится вместе с сервером": "This is Hub. It closes when its server stops.",
+        f"«{name}» защищён: без него Windows работает плохо": f"Windows protects {name} because it is required.",
+        "Процесс запущен вне твоей сессии Windows": "This process runs in a different Windows session.",
+    }
+    return tr(english.get(reason, reason), reason)
+
+
 def _process_columns(*values, heading=False):
     grid = Grid()
     for index, (value, width) in enumerate(zip(values, (None, 72, 96, 73))):
@@ -370,14 +420,14 @@ def _process_columns(*values, heading=False):
 def _monitor(page):
     grid = page.add(make(UniformGrid, Columns=2, Margin=Thickness(0, 0, -8, 0)))
     grid.SizeChanged += lambda *_: setattr(grid, "Columns", 4 if grid.ActualWidth >= 720 else 2)
-    cpu = _vital(grid, "Процессор", meter=True, history=True)
-    ram = _vital(grid, "Память", meter=True, history=True)
-    disk = _vital(grid, "Системный диск", meter=True)
-    uptime = _vital(grid, "Без перезагрузки")
+    cpu = _vital(grid, tr("CPU", "Процессор"), meter=True, history=True)
+    ram = _vital(grid, tr("Memory", "Память"), meter=True, history=True)
+    disk = _vital(grid, tr("System drive", "Системный диск"), meter=True)
+    uptime = _vital(grid, tr("Uptime", "Без перезагрузки"))
 
     filters = page.add(Grid())
-    query = page.field("Имя процесса или PID")
-    order = page.choice("Сортировка", ["По процессору", "По памяти", "По имени"])
+    query = page.field(tr("Process name or PID", "Имя процесса или PID"))
+    order = page.choice(tr("Sort by", "Сортировка"), [tr("CPU", "По процессору"), tr("Memory", "По памяти"), tr("Name", "По имени")])
     for index, field in enumerate((query, order)):
         group = field.Parent
         page.panel.Children.Remove(group)
@@ -390,16 +440,16 @@ def _monitor(page):
     state = page.add(Grid())
     state.ColumnDefinitions.Add(make(ColumnDefinition, Width=GridLength.Auto))
     state.ColumnDefinitions.Add(ColumnDefinition())
-    paused = page.check("Пауза обновления")
+    paused = page.check(tr("Pause updates", "Пауза обновления"))
     page.panel.Children.Remove(paused)
     state.Children.Add(paused)
-    live = label("Обновление каждые 2 с", 12, muted=True)
+    live = label(tr("Refreshes every 2 s", "Обновление каждые 2 с"), 12, muted=True)
     live.Margin = Thickness(10, 5, 0, 6)
     live.TextAlignment = TextAlignment.Right
     Grid.SetColumn(live, 1)
     state.Children.Add(live)
 
-    count = page.section("Процессы")
+    count = page.section(tr("Processes", "Процессы"))
     processes = []
     shown = []
 
@@ -409,13 +459,17 @@ def _monitor(page):
         stop_button.IsEnabled = bool(item and item["can_stop"])
         minimize_button.IsEnabled = bool(item and item.get("can_minimize"))
         if not item:
-            info.Text = "Выбери процесс." if shown else ("Нет подходящих процессов." if processes else "Загружаю процессы…")
+            info.Text = (
+                tr("Select a process.", "Выбери процесс.") if shown else
+                tr("No matching processes.", "Нет подходящих процессов.") if processes else
+                tr("Loading processes…", "Загружаю процессы…")
+            )
         elif not item["can_stop"]:
-            info.Text = item["why_not"]
+            info.Text = _process_reason(item)
         elif not item.get("can_minimize"):
-            info.Text = "У выбранного процесса нет видимых окон."
+            info.Text = tr("The selected process has no visible windows.", "У выбранного процесса нет видимых окон.")
         else:
-            info.Text = f"Выбран {item['name']} · PID {item['pid']}"
+            info.Text = tr(f"Selected: {item['name']} · PID {item['pid']}", f"Выбран {item['name']} · PID {item['pid']}")
 
     def render_list(*_):
         nonlocal shown
@@ -428,7 +482,10 @@ def _monitor(page):
             return (*keys[max(order.SelectedIndex, 0)], item["pid"])
 
         items.sort(key=sort_keys)
-        count.Text = f"Процессы · {len(items)} из {len(processes)}" if search else f"Процессы · {len(items)}"
+        count.Text = tr(f"Processes · {len(items)} of {len(processes)}", f"Процессы · {len(items)} из {len(processes)}") if search else tr(
+            f"Processes · {len(items)}",
+            f"Процессы · {len(items)}",
+        )
         selection = page.selected(rows, shown)
         chosen = _process_identity(selection[0]) if selection else None
         had_focus = rows.IsKeyboardFocusWithin
@@ -442,9 +499,12 @@ def _monitor(page):
             values = item["name"], _percent(item["cpu"]), _size(item["memory"]), str(item["pid"])
             for cell, value in zip(row.Content.Children, values):
                 cell.Text = value
-            AutomationProperties.SetName(row, f"{values[0]}, ЦП {values[1]}, память {values[2]}, PID {values[3]}")
-            started = f"\nЗапущен {_date(item['started'])}" if item.get("started") else ""
-            protected = f"\n{item['why_not']}" if item.get("why_not") else ""
+            AutomationProperties.SetName(row, tr(
+                f"{values[0]}, CPU {values[1]}, memory {values[2]}, PID {values[3]}",
+                f"{values[0]}, ЦП {values[1]}, память {values[2]}, PID {values[3]}",
+            ))
+            started = tr(f"\nStarted {_date(item['started'])}", f"\nЗапущен {_date(item['started'])}") if item.get("started") else ""
+            protected = "\n" + _process_reason(item) if item.get("why_not") else ""
             row.ToolTip = f"{values[0]} · PID {values[3]}{started}{protected}"
         shown = items
         while rows.Items.Count > len(items):
@@ -462,16 +522,22 @@ def _monitor(page):
         system = data["system"]
         memory, drive = system["memory"], system["disk"]
         history = data.get("history", [])
-        _set_vital(cpu, _percent(system["cpu"]), f"Ядер: {system['cores']}", system["cpu"], [v["cpu"] for v in history])
-        _set_vital(ram, _percent(memory["percent"]), f"{_size(memory['used'])} из {_size(memory['total'])}",
-                   memory["percent"], [v["memory"] for v in history])
+        cores = tr(f"Cores: {system['cores']}", f"Ядер: {system['cores']}")
+        _set_vital(cpu, _percent(system["cpu"]), cores, system["cpu"], [v["cpu"] for v in history])
+        used, total = _size(memory["used"]), _size(memory["total"])
+        ram_detail = tr(f"{used} of {total}", f"{used} из {total}")
+        _set_vital(ram, _percent(memory["percent"]), ram_detail, memory["percent"], [v["memory"] for v in history])
         if drive["total"]:
-            _set_vital(disk, _size(drive["free"]), f"Свободно из {_size(drive['total'])}", 100 - drive["percent"])
+            total = _size(drive["total"])
+            _set_vital(disk, _size(drive["free"]), tr(f"Free out of {total}", f"Свободно из {total}"), 100 - drive["percent"])
         else:
             _set_vital(disk, "—")
         total_hours, minutes = divmod(int(system["uptime"]) // 60, 60)
         days, hours = divmod(total_hours, 24)
-        _set_vital(uptime, f"{days} д  {hours} ч  {minutes} мин" if days else f"{hours} ч  {minutes} мин")
+        _set_vital(uptime, tr(f"{days} d  {hours} h  {minutes} min", f"{days} д  {hours} ч  {minutes} мин") if days else tr(
+            f"{hours} h  {minutes} min",
+            f"{hours} ч  {minutes} мин",
+        ))
         processes = data["processes"]
         render_list()
 
@@ -482,41 +548,47 @@ def _monitor(page):
             reload()
 
     def toggle_pause(*_):
-        live.Text = "Обновление на паузе" if paused.IsChecked else "Обновление каждые 2 с"
+        live.Text = tr("Updates paused", "Обновление на паузе") if paused.IsChecked else tr("Refreshes every 2 s", "Обновление каждые 2 с")
         refresh()
 
     def process_action(action):
-        item = _selected(page, rows, shown, "Выбери процесс.")
+        item = _selected(page, rows, shown, tr("Select a process.", "Выбери процесс."))
         if not item:
             return
         if not item["can_stop"]:
-            page.notice(item.get("why_not") or "Процесс защищён.")
+            page.notice(_process_reason(item) or tr("This process is protected.", "Процесс защищён."))
             return
         pid, name, creation = _process_identity(item)
         if action == "terminate":
-            if not page.confirm("Закрыть процесс?", f"«{name}» (PID {pid}) завершится. Несохранённые данные будут потеряны."):
+            if not page.confirm(tr("End process?", "Закрыть процесс?"), tr(
+                f"“{name}” (PID {pid}) will close. Unsaved work will be lost.",
+                f"«{name}» (PID {pid}) завершится. Несохранённые данные будут потеряны.",
+            )):
                 return
 
         def finished(result):
             reload()
             if action == "terminate":
-                page.notice(f"«{result['name']}» закрыт.")
+                page.notice(tr(f"“{result['name']}” closed.", f"«{result['name']}» закрыт."))
             else:
-                page.notice(f"Сворачивание запрошено. Окон: {result['requested']}.")
+                page.notice(tr(
+                    f"Minimize requested for {result['requested']} windows.",
+                    f"Сворачивание запрошено. Окон: {result['requested']}.",
+                ))
 
         payload = {"pid": pid, "created": item["created"], "name": name, "creation": creation}
-        message = "Закрываю процесс…" if action == "terminate" else "Сворачиваю окна…"
+        message = tr("Ending process…", "Закрываю процесс…") if action == "terminate" else tr("Minimizing windows…", "Сворачиваю окна…")
         page.run(lambda: page.post(f"/api/monitor/{action}", payload), finished, message=message)
 
-    minimize_button, stop_button, _ = page.actions(("Свернуть окна", lambda: process_action("minimize")),
-                                                   ("Закрыть процесс", lambda: process_action("terminate")),
-                                                   ("Обновить", reload))
+    minimize_button, stop_button, _ = page.actions((tr("Minimize windows", "Свернуть окна"), lambda: process_action("minimize")),
+                                                   (tr("End process", "Закрыть процесс"), lambda: process_action("terminate")),
+                                                   (tr("Refresh", "Обновить"), reload))
     info = page.text("", muted=True)
-    header = _process_columns("Имя процесса", "ЦП", "Память", "PID", heading=True)
+    header = _process_columns(tr("Process name", "Имя процесса"), tr("CPU", "ЦП"), tr("Memory", "Память"), "PID", heading=True)
     header.Margin = Thickness(14, 0, 23, 3)
     page.add(header)
     rows = page.rows(max_height=350)
-    AutomationProperties.SetName(rows, "Процессы")
+    AutomationProperties.SetName(rows, tr("Processes", "Процессы"))
     query.TextChanged += render_list
     order.SelectionChanged += render_list
     paused.Checked += toggle_pause
@@ -529,9 +601,12 @@ def _monitor(page):
 
 def _about(page):
     title = page.text("Hub", size=24)
-    page.text("Локальные инструменты для Windows. Данные хранятся на этом компьютере.", muted=True)
-    details = page.text("Загрузка сведений…", muted=True)
-    project = page.field("Папка приложения")
+    page.text(tr(
+        "Local tools for Windows. Your data stays on this computer.",
+        "Локальные инструменты для Windows. Данные хранятся на этом компьютере.",
+    ), muted=True)
+    details = page.text(tr("Loading details…", "Загрузка сведений…"), muted=True)
+    project = page.field(tr("App folder", "Папка приложения"))
     project.IsReadOnly = True
     info = {}
 
@@ -544,23 +619,38 @@ def _about(page):
         page.download("/api/system/backup", filename)
 
     def shutdown():
-        if page.confirm("Выключить Hub?", "Окно, обмен с телефоном и фоновая запись буфера обмена будут остановлены."):
-            page.run(lambda: page.post("/api/system/shutdown", {}), message="Выключаю Hub…")
+        if page.confirm(tr("Quit Hub?", "Выключить Hub?"), tr(
+            "This closes the window, stops phone sharing and pauses clipboard recording.",
+            "Окно, обмен с телефоном и фоновая запись буфера обмена будут остановлены.",
+        )):
+            page.run(lambda: page.post("/api/system/shutdown", {}), message=tr("Quitting Hub…", "Выключаю Hub…"))
 
     def tutorial():
         MessageBox.Show(
             Window.GetWindow(title),
-            "Выбирай инструменты на боковой панели.\n\n"
-            "Файлы, перемещённые в корзину Hub, можно вернуть на место.\n\n"
-            "Открой QR-Drop, чтобы передать файлы и текст по Wi-Fi.\n\n"
-            "Тему оформления и параметры запуска можно поменять в настройках.",
-            "Знакомство с Hub",
+            tr(
+                "Choose a tool in the sidebar.\n\n"
+                "Files moved to Hub Trash can be restored.\n\n"
+                "Open Phone Transfer to send files and text over Wi-Fi.\n\n"
+                "Change the theme and startup options in Settings.",
+                "Выбирай инструменты на боковой панели.\n\n"
+                "Файлы, перемещённые в корзину Hub, можно вернуть на место.\n\n"
+                "Открой QR-Drop, чтобы передать файлы и текст по Wi-Fi.\n\n"
+                "Тему оформления и параметры запуска можно поменять в настройках.",
+            ),
+            tr("Getting to know Hub", "Знакомство с Hub"),
         )
 
     def render_shortcuts(data):
         desktop_button.Visibility = start_button.Visibility = Visibility.Visible if data.get("supported") else Visibility.Collapsed
-        desktop_button.Content = "Удалить ярлык с рабочего стола" if data.get("desktop") else "Ярлык на рабочий стол"
-        start_button.Content = "Удалить ярлык из меню «Пуск»" if data.get("start_menu") else "Ярлык в меню «Пуск»"
+        desktop_button.Content = tr("Remove desktop shortcut", "Удалить ярлык с рабочего стола") if data.get("desktop") else tr(
+            "Create desktop shortcut",
+            "Ярлык на рабочий стол",
+        )
+        start_button.Content = tr("Remove Start menu shortcut", "Удалить ярлык из меню «Пуск»") if data.get("start_menu") else tr(
+            "Create Start menu shortcut",
+            "Ярлык в меню «Пуск»",
+        )
 
     def toggle_shortcut(target):
         def work():
@@ -573,25 +663,32 @@ def _about(page):
     def render(data):
         info.update(data)
         title.Text = f"Hub {data['version']}"
-        details.Text = f"Автор: {data['author']}  ·  {data['license']}  ·  инструментов: {data['tools']}  ·  Python {data['python']} + WPF"
+        details.Text = tr(
+            f"Author: {data['author']}  ·  {data['license']}  ·  Tools: {data['tools']}  ·  Python {data['python']} + WPF",
+            f"Автор: {data['author']}  ·  {data['license']}  ·  инструментов: {data['tools']}  ·  Python {data['python']} + WPF",
+        )
         project.Text = data["folder"]
         release_notes.Text = "\n\n".join(
-            f"{release['version']}  ·  {release['date']}\n" + "\n".join(f"• {item}" for item in release["items"])
+            f"{release['version']}  ·  {release['date']}\n"
+            + "\n".join(f"• {item}" for item in tr(release.get("items_en", release["items"]), release["items"]))
             for release in data.get("changes", [])
-        ) or "История пока пуста."
-        license_text.Text = data.get("license_text") or "Файл LICENSE недоступен."
+        ) or tr("Release history is empty.", "История пока пуста.")
+        license_text.Text = data.get("license_text") or tr("The LICENSE file is unavailable.", "Файл LICENSE недоступен.")
 
-    page.actions(("Папка приложения", lambda: open_path("folder")),
-                 ("README в проводнике", lambda: open_path("readme")),
-                 ("Резервная копия (ZIP)", backup), ("Показать обучение", tutorial), ("Выключить Hub", shutdown))
-    desktop_button, start_button = page.actions(("Ярлык на рабочий стол", lambda: toggle_shortcut("desktop")),
-                                               ("Ярлык в меню «Пуск»", lambda: toggle_shortcut("start_menu")))
+    page.actions((tr("App folder", "Папка приложения"), lambda: open_path("folder")),
+                 (tr("Show README in File Explorer", "README в проводнике"), lambda: open_path("readme")),
+                 (tr("Backup (ZIP)", "Резервная копия (ZIP)"), backup), (tr("Show tutorial", "Показать обучение"), tutorial), (tr(
+                     "Quit Hub",
+                     "Выключить Hub",
+                 ), shutdown))
+    desktop_button, start_button = page.actions((tr("Create desktop shortcut", "Ярлык на рабочий стол"), lambda: toggle_shortcut("desktop")),
+                                               (tr("Create Start menu shortcut", "Ярлык в меню «Пуск»"), lambda: toggle_shortcut("start_menu")))
     desktop_button.Visibility = start_button.Visibility = Visibility.Collapsed
-    release_notes = page.field("История версий", multiline=True)
+    release_notes = page.field(tr("Release history", "История версий"), multiline=True)
     release_notes.IsReadOnly = True
     release_notes.MaxHeight = 240
     release_notes.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-    license_text = page.field("Текст лицензии MIT", multiline=True)
+    license_text = page.field(tr("MIT license text", "Текст лицензии MIT"), multiline=True)
     license_text.IsReadOnly = True
     license_text.MaxHeight = 220
     license_text.VerticalScrollBarVisibility = ScrollBarVisibility.Auto

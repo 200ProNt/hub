@@ -4,12 +4,15 @@ from urllib.parse import quote
 
 from System import DateTime, TimeSpan
 from System.Globalization import CultureInfo
-from System.Windows import GridLength, Thickness, Visibility
-from System.Windows.Controls import Border, ColumnDefinition, Grid, RowDefinition, StackPanel
+from System.Windows import FontWeights, GridLength, Thickness, VerticalAlignment, Visibility
+from System.Windows.Automation import AutomationProperties
+from System.Windows.Controls import Border, ColumnDefinition, Dock, DockPanel, Grid, ProgressBar, RowDefinition, StackPanel
 from System.Windows.Input import Key, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherTimer
 
-from .widgets import make
+from tools.i18n import tr
+
+from .widgets import glyph, label, make
 
 
 def listen(page, field, changed):
@@ -28,14 +31,27 @@ def listen(page, field, changed):
     page.on_leave(timer.Stop)
 
 
-def card(page, build, featured=False):
+def card(page, title, icon, build, featured=False):
     parent = page.panel
     inner = StackPanel()
-    surface = make(Border, Padding=Thickness(18, 13, 18, 12), Margin=Thickness(0, 8, 0, 7), Child=inner)
+    surface = make(Border, Padding=Thickness(18, 16, 18, 15), Child=inner)
     surface.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
     surface.SetResourceReference(Border.BorderThicknessProperty, "PanelStroke")
     surface.SetResourceReference(Border.BackgroundProperty, "Feature" if featured else "Layer")
     surface.SetResourceReference(Border.BorderBrushProperty, "Edge")
+    header = make(DockPanel, Margin=Thickness(0, 0, 0, 12))
+    badge = make(Border, Width=34, Height=34, Margin=Thickness(0, 0, 10, 0),
+                 Child=glyph(icon, 18, "AccentInk"))
+    badge.SetResourceReference(Border.CornerRadiusProperty, "RowRadius")
+    badge.SetResourceReference(Border.BackgroundProperty, "Accent")
+    DockPanel.SetDock(badge, Dock.Left)
+    header.Children.Add(badge)
+    caption = label(title, 19)
+    caption.FontWeight = FontWeights.SemiBold
+    caption.VerticalAlignment = VerticalAlignment.Center
+    caption.SetResourceReference(type(caption).ForegroundProperty, "FeatureInk" if featured else "Ink")
+    header.Children.Add(caption)
+    inner.Children.Add(header)
     page.add(surface)
     page.panel = inner
     try:
@@ -51,42 +67,57 @@ def excerpt(value, limit=92):
 
 def note_caption(note):
     title = note["title"] or excerpt(note["text"], 45)
-    return ("Закреплено · " if note.get("pinned") else "") + title + "\n" + excerpt(note["text"])
+    return (tr("Pinned · ", "Закреплено · ") if note.get("pinned") else "") + title + "\n" + excerpt(note["text"])
 
 
 def home(page):
-    date = DateTime.Now.ToString("dddd, d MMMM", CultureInfo("ru-RU"))
+    date = DateTime.Now.ToString(tr("dddd, MMMM d", "dddd, d MMMM"), CultureInfo(tr("en-US", "ru-RU")))
     page.text(date[0].upper() + date[1:], 14, muted=True)
 
     def quick_actions():
-        heading = page.section("Быстрая запись")
-        heading.SetResourceReference(type(heading).ForegroundProperty, "FeatureInk")
-        field = page.field("Текст заметки или буфера")
+        field = page.field(tr("A note, link, or task", "Заметка, ссылка или задача"), multiline=True)
 
         def store_note():
-            text = field.Text.strip()
+            draft = field.Text
+            text = draft.strip()
             if text:
                 def saved(_):
-                    field.Clear()
+                    if field.Text == draft:
+                        field.Clear()
                     page.hub.saved()
-                    page.notice("Заметка сохранена")
+                    page.notice(tr("Note saved", "Заметка сохранена"))
                     summary()
                 page.run(lambda: page.post("/api/notes/create", {"text": text}), saved)
 
-        page.actions(("Сохранить заметку", store_note, True), ("Скопировать", lambda: page.copy(field.Text)),
-                     ("Открыть заметки", lambda: page.go("notes")))
-    card(page, quick_actions, featured=True)
+        buttons = page.actions((tr("Save to Notes", "Сохранить в заметки"), store_note, True),
+                               (tr("Copy text", "Скопировать"), lambda: page.copy(field.Text)))
 
-    def recent():
-        page.section("Незавершённые дела")
-        todo_box = page.rows(max_height=155)
-        page.actions(("Готово", mark_done), ("Открыть заметку", open_todo))
-        return todo_box
+        def update_actions(*_):
+            for button in buttons:
+                button.IsEnabled = bool(field.Text.strip())
+
+        field.TextChanged += update_actions
+        update_actions()
+
+    def system():
+        meters = []
+        for title in (tr("Processor", "Процессор"), tr("Memory", "Память")):
+            row = make(DockPanel)
+            value = label("—", 16)
+            value.FontWeight = FontWeights.SemiBold
+            DockPanel.SetDock(value, Dock.Right)
+            row.Children.Add(value)
+            row.Children.Add(label(title, muted=True))
+            page.add(row)
+            bar = page.add(make(ProgressBar, Height=6, Margin=Thickness(0, 4, 0, 10)))
+            AutomationProperties.SetName(bar, title)
+            meters.append((value, bar))
+        page.actions((tr("PC monitor", "Мониторинг ПК"), lambda: page.go("monitor")),
+                     (tr("Disk map", "Карта диска"), lambda: page.go("diskmap")))
+        return meters
 
     def choose_todo():
         selected = page.selected(todos, todo_items)
-        if not selected:
-            page.notice("Выбери дело")
         return selected[0] if selected else None
 
     def mark_done():
@@ -98,15 +129,16 @@ def home(page):
             note = next((item for item in page.get("/api/notes/items")["items"]
                          if item["id"] == selected["note_id"]), None)
             if not note:
-                raise ValueError("Заметка уже удалена")
+                raise ValueError(tr("This note has already been deleted", "Заметка уже удалена"))
             lines = note["text"].splitlines(keepends=True)
             index = selected["line_idx"]
             expected = "- [ ]" + (" " + selected["text"] if selected["text"] else "")
             if index >= len(lines) or " ".join(lines[index].split()) != " ".join(expected.split()):
-                raise ValueError("Заметка изменилась. Обнови список дел.")
+                raise ValueError(tr("This note changed. Reopen Home to refresh the task list.",
+                                    "Заметка изменилась. Открой главную заново, чтобы обновить список дел."))
             lines[index] = lines[index].replace("- [ ]", "- [x]", 1)
             return page.post("/api/notes/update", {"id": note["id"], "title": note["title"], "text": "".join(lines)})
-        page.run(complete, lambda _: summary())
+        page.run(complete, lambda _: summary(), tr("Updating task…", "Обновляю задачу…"))
 
     def open_todo():
         selected = choose_todo()
@@ -114,49 +146,80 @@ def home(page):
             page.go("notes", selected["text"])
 
     todo_items = []
+    clip_items = []
+
+    def copy_recent():
+        selected = page.selected(clips, clip_items)
+        if selected:
+            page.copy(selected[0]["text"])
+
+    def recent(title, entries, primary, secondary):
+        detail = page.text(tr("Loading…", "Загрузка…"), 13, muted=True)
+        rows = page.rows(max_height=138)
+        rows.Visibility = Visibility.Collapsed
+        AutomationProperties.SetName(rows, title)
+        select_action, _ = page.actions(primary, secondary)
+        select_action.IsEnabled = False
+        rows.SelectionChanged += lambda *_: setattr(select_action, "IsEnabled", bool(page.selected(rows, entries)))
+        return rows, detail
+
+    def task_card():
+        return recent(tr("Open tasks", "Незавершённые дела"), todo_items,
+                      (tr("Mark done", "Выполнено"), mark_done), (tr("All notes", "Все заметки"), lambda: page.go("notes")))
 
     def clipboard_card():
-        page.section("Буфер обмена")
-        result = page.rows(max_height=130)
-        page.actions(("Вся история", lambda: page.go("clipboard")), ("Мониторинг ПК", lambda: page.go("monitor")))
-        return result
+        return recent(tr("Recent clipboard", "Недавнее в буфере"), clip_items,
+                      (tr("Copy selected", "Скопировать"), copy_recent),
+                      (tr("Full history", "Вся история"), lambda: page.go("clipboard")))
 
-    left, todos = card(page, recent)
-    if page.hub.settings.get("hub-style") == "material":
-        right, clips = card(page, clipboard_card)
-        pair = Grid()
-        for child in (left, right):
-            page.panel.Children.Remove(child)
-            pair.Children.Add(child)
-            pair.ColumnDefinitions.Add(ColumnDefinition())
-            pair.RowDefinitions.Add(make(RowDefinition, Height=GridLength.Auto))
+    capture, _ = card(page, tr("Quick capture", "Быстрая запись"), "note", quick_actions, featured=True)
+    pc, meters = card(page, tr("System snapshot", "Состояние ПК"), "pulse", system)
+    tasks, (todos, task_detail) = card(page, tr("Open tasks", "Незавершённые дела"), "folder", task_card)
+    history, (clips, clip_detail) = card(page, tr("Recent clipboard", "Недавнее в буфере"), "clipboard", clipboard_card)
+    todos.MouseDoubleClick += lambda *_: open_todo()
+    clips.MouseDoubleClick += lambda *_: copy_recent()
 
-        def arrange(*_):
-            wide = pair.ActualWidth >= 640
-            Grid.SetColumnSpan(left, 1 if wide else 2)
-            Grid.SetColumn(right, 1 if wide else 0)
-            Grid.SetColumnSpan(right, 1 if wide else 2)
-            Grid.SetRow(right, 0 if wide else 1)
-            left.Margin = Thickness(0, 8, 6 if wide else 0, 7)
-            right.Margin = Thickness(6 if wide else 0, 8, 0, 7)
+    dashboard = Grid()
+    dashboard.ColumnDefinitions.Add(ColumnDefinition())
+    dashboard.ColumnDefinitions.Add(ColumnDefinition())
+    cards = (capture, pc, tasks, history)
+    for panel in cards:
+        page.panel.Children.Remove(panel)
+        dashboard.Children.Add(panel)
+        dashboard.RowDefinitions.Add(make(RowDefinition, Height=GridLength.Auto))
 
-        arrange()
-        pair.SizeChanged += arrange
-        page.add(pair)
-    else:
-        clips = clipboard_card()
-    info = page.text("", 13, muted=True)
+    def arrange(*_):
+        wide = dashboard.ActualWidth >= 650
+        for index, panel in enumerate(cards):
+            column = index % 2 if wide else 0
+            Grid.SetColumn(panel, column)
+            Grid.SetColumnSpan(panel, 1 if wide else 2)
+            Grid.SetRow(panel, index // 2 if wide else index)
+            panel.Margin = Thickness(6 if column else 0, 6, 6 if wide and not column else 0, 6)
+
+    arrange()
+    dashboard.SizeChanged += arrange
+    page.add(dashboard)
 
     def render(summary_data):
         todo_items[:] = summary_data["todos"]
-        page.show_rows(todos, todo_items, lambda item: item["text"] or "Дело без названия")
-        if not todo_items:
-            todos.Items.Add("Все дела выполнены")
-        page.show_rows(clips, summary_data["recent_clips"], lambda item: excerpt(item.get("text")))
-        if not summary_data["recent_clips"]:
-            clips.Items.Add("История пока пуста")
+        clip_items[:] = summary_data["recent_clips"]
+        page.show_rows(todos, todo_items, lambda item: excerpt(item["text"]) or tr("Untitled task", "Дело без названия"))
+        page.show_rows(clips, clip_items, lambda item: excerpt(item["text"]))
+        todos.Visibility = Visibility.Visible if todo_items else Visibility.Collapsed
+        clips.Visibility = Visibility.Visible if clip_items else Visibility.Collapsed
         stats = summary_data["stats"]
-        info.Text = f"{stats['notes_count']} заметок  ·  {stats['clipboard_count']} записей в истории"
+        task_detail.Text = (tr("From your notes", "Из твоих заметок") if todo_items else
+                            tr("Add an unchecked task in Notes with - [ ]", "Добавь задачу в заметках через - [ ]"))
+        clip_detail.Text = (tr("Saved items: {count}", "Записей в истории: {count}").format(count=stats["clipboard_count"])
+                            if clip_items else tr("Copied text will appear here.", "Здесь появится скопированный текст."))
+        vitals = summary_data.get("vitals") or {}
+        for key, (value, bar) in zip(("cpu_percent", "memory_percent"), meters):
+            percent = vitals.get(key)
+            value.Text = "—" if percent is None else f"{percent:.0f}%"
+            bar.Visibility = Visibility.Hidden if percent is None else Visibility.Visible
+            if percent is not None:
+                bar.Value = percent
 
     def summary():
         page.run(lambda: page.get("/api/home/summary"), render, message="")
@@ -165,7 +228,7 @@ def home(page):
 
 
 def notes(page, query):
-    search = page.field("Найти в заметках", query)
+    search = page.field(tr("Search notes", "Найти в заметках"), query)
     box = page.rows(max_height=290)
     items = []
     editing = None
@@ -178,7 +241,7 @@ def notes(page, query):
         if items and match:
             box.SelectedIndex = 0
         if not items:
-            box.Items.Add("Заметок пока нет" if not match else "Совпадений нет")
+            box.Items.Add(tr("No notes yet", "Заметок пока нет") if not match else tr("No matches", "Совпадений нет"))
 
     def refresh():
         match = search.Text.strip()
@@ -188,7 +251,7 @@ def notes(page, query):
     def selected():
         records = page.selected(box, items) if items else []
         if not records:
-            page.notice("Выбери заметку")
+            page.notice(tr("Select a note", "Выбери заметку"))
         return records[0] if records else None
 
     def edit(item=None):
@@ -214,7 +277,7 @@ def notes(page, query):
             close_editor()
             page.hub.saved()
             refresh()
-            page.notice("Заметка сохранена")
+            page.notice(tr("Note saved", "Заметка сохранена"))
         page.run(lambda: page.post("/api/notes/" + kind, payload), done)
 
     def edit_selected():
@@ -224,7 +287,7 @@ def notes(page, query):
     def modify(action):
         if (item := selected()) is None:
             return
-        if action == "delete" and not page.confirm("Удалить заметку?", "Заметка будет удалена окончательно."):
+        if action == "delete" and not page.confirm(tr("Delete this note?", "Удалить заметку?"), tr("This note will be permanently deleted.", "Заметка будет удалена окончательно.")):
             return
         page.run(lambda: page.post("/api/notes/" + action, {"id": item["id"]}), lambda _: refresh())
 
@@ -237,18 +300,18 @@ def notes(page, query):
         query = "&id=" + quote(item["id"]) if item else ""
         page.download(f"/api/notes/export?format={kind}{query}", f"hub-notes.{kind}")
 
-    page.actions(("Новая заметка", edit, True), ("Открыть", edit_selected), ("Закрепить / открепить", lambda: modify("pin")),
-                 ("Удалить", lambda: modify("delete")))
-    formats = page.choice("Формат экспорта", ("Markdown", "Обычный текст"))
-    page.actions(("Экспорт заметки", lambda: export(True)), ("Экспорт всех заметок", lambda: export(False)))
+    page.actions((tr("New note", "Новая заметка"), edit, True), (tr("Open", "Открыть"), edit_selected), (tr("Pin / unpin", "Закрепить / открепить"), lambda: modify("pin")),
+                 (tr("Delete", "Удалить"), lambda: modify("delete")))
+    formats = page.choice(tr("Export format", "Формат экспорта"), ("Markdown", tr("Plain text", "Обычный текст")))
+    page.actions((tr("Export note", "Экспорт заметки"), lambda: export(True)), (tr("Export all notes", "Экспорт всех заметок"), lambda: export(False)))
     editor = make(StackPanel, Visibility=Visibility.Collapsed)
     page.add(editor)
     previous = page.panel
     page.panel = editor
-    page.section("Редактор заметки")
-    title = page.field("Заголовок")
-    body = page.field("Текст", multiline=True)
-    page.actions(("Сохранить", save, True), ("Отмена", close_editor))
+    page.section(tr("Note editor", "Редактор заметки"))
+    title = page.field(tr("Title", "Заголовок"))
+    body = page.field(tr("Text", "Текст"), multiline=True)
+    page.actions((tr("Save", "Сохранить"), save, True), (tr("Cancel", "Отмена"), close_editor))
     page.panel = previous
 
     def key(_, event):
@@ -266,9 +329,9 @@ def notes(page, query):
 
 
 def clipboard(page, query):
-    search = page.field("Найти в истории", query)
+    search = page.field(tr("Search history", "Найти в истории"), query)
     filters = ("", "link", "code", "text")
-    kind = page.choice("Тип", ("Все записи", "Ссылки", "Код", "Текст"))
+    kind = page.choice(tr("Type", "Тип"), (tr("All entries", "Все записи"), tr("Links", "Ссылки"), tr("Code", "Код"), tr("Text", "Текст")))
     box = page.rows(max_height=340)
     items = []
     state = page.text("", muted=True)
@@ -282,12 +345,12 @@ def clipboard(page, query):
             if match != (search.Text.strip(), kind.SelectedIndex):
                 return
             paused = data["paused"]
-            state.Text = f"Записей: {data['total']}" + (" · Запись приостановлена" if paused else "")
+            state.Text = tr(f"Entries: {data['total']}", f"Записей: {data['total']}") + (tr(" · Capture paused", " · Запись приостановлена") if paused else "")
             items[:] = data["items"]
-            page.show_rows(box, items, lambda item: ("Закреплено · " if item["pinned"] else "")
+            page.show_rows(box, items, lambda item: (tr("Pinned · ", "Закреплено · ") if item["pinned"] else "")
                            + excerpt(item.get("text"), 165))
             if not items:
-                box.Items.Add("Записей нет")
+                box.Items.Add(tr("No entries", "Записей нет"))
 
         path = f"/api/clipboard/items?q={quote(match[0])}&type={filters[max(match[1], 0)]}&limit=500"
         page.run(lambda: page.get(path), show, message="")
@@ -295,25 +358,25 @@ def clipboard(page, query):
     def modify(action):
         selected = page.selected(box, items) if items else []
         if not selected:
-            page.notice("Выбери запись")
+            page.notice(tr("Select an entry", "Выбери запись"))
             return
-        if action == "delete" and not page.confirm("Удалить запись?", "Запись будет удалена окончательно."):
+        if action == "delete" and not page.confirm(tr("Delete this entry?", "Удалить запись?"), tr("This entry will be permanently deleted.", "Запись будет удалена окончательно.")):
             return
         identity = selected[0]["id"]
         page.run(lambda: page.post("/api/clipboard/" + action, {"id": identity}),
-                 lambda _: page.notice("Скопировано") if action == "copy" else refresh())
+                 lambda _: page.notice(tr("Copied", "Скопировано")) if action == "copy" else refresh())
 
     def clear():
-        if page.confirm("Очистить историю?", "Все записи, включая закреплённые, будут удалены."):
+        if page.confirm(tr("Clear history?", "Очистить историю?"), tr("All entries, including pinned ones, will be deleted.", "Все записи, включая закреплённые, будут удалены.")):
             page.run(lambda: page.post("/api/clipboard/clear", {}), lambda _: refresh())
 
     def pause():
         request = {"paused": not paused}
         page.run(lambda: page.post("/api/clipboard/pause", request), lambda _: refresh())
 
-    page.actions(("Скопировать", lambda: modify("copy"), True), ("Закрепить / открепить", lambda: modify("pin")),
-                 ("Удалить", lambda: modify("delete")), ("Пауза / продолжить", pause),
-                 ("Обновить", refresh), ("Очистить историю", clear))
+    page.actions((tr("Copy", "Скопировать"), lambda: modify("copy"), True), (tr("Pin / unpin", "Закрепить / открепить"), lambda: modify("pin")),
+                 (tr("Delete", "Удалить"), lambda: modify("delete")), (tr("Pause / resume", "Пауза / продолжить"), pause),
+                 (tr("Refresh", "Обновить"), refresh), (tr("Clear history", "Очистить историю"), clear))
     box.MouseDoubleClick += lambda *_: modify("copy")
     kind.SelectionChanged += lambda *_: refresh()
     listen(page, search, refresh)

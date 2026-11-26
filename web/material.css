@@ -22,68 +22,116 @@
   --field: light-dark(#E7E0EC, #27242D);
 }
 
-[data-glass="off"][data-accent="emerald"] {
-  --bg: light-dark(#F7FAF5, #0B0F0D);
-  --sidebar: light-dark(#E8F0E9, #141B17);
-  --card: light-dark(#EFF5EF, #0F1511);
-  --card-soft: light-dark(#EFF5EF, #0F1511);
-  --text: light-dark(#2B352F, #DEE8E0);
-  --muted: light-dark(#57615B, #A3AEA6);
-  --accent: light-dark(#2D6A51, #A2D1B8);
-  --accent-ink: light-dark(#E6FFEF, #1B4836);
-  --accent-soft: light-dark(#CFE9D9, #2A4035);
-  --feature: light-dark(#B1F0D0, #2F5B47);
-  --feature-ink: light-dark(#1E5C44, #BEEED4);
-  --border: light-dark(#AAB4AD, #404A44);
-  --field: light-dark(#DBE5DD, #1F2823);
+[data-glass="off"][data-accent="graphite"] {
+  --bg: light-dark(#F9F9FE, #0C0E12);
+  --sidebar: light-dark(#EBEEF5, #161A1F);
+  --card: light-dark(#F2F3FA, #101418);
+  --card-soft: light-dark(#F2F3FA, #101418);
+  --text: light-dark(#2E333A, #E1E6EF);
+  --muted: light-dark(#5A5F67, #A6ABB4);
+  --accent: light-dark(#3D6288, #AEC9EB);
+  --accent-ink: light-dark(#F7F9FF, #27425E);
+  --accent-soft: light-dark(#D6E4F7, #303C4C);
+  --feature: light-dark(#ADD2FE, #3A5471);
+  --feature-ink: light-dark(#21486D, #D2E5FF);
+  --border: light-dark(#ADB2BB, #434850);
+  --field: light-dark(#DEE3EC, #21262D);
 }
 
 [data-glass="off"][data-accent="ocean"] {
-  --bg: light-dark(#F9F9FE, #0C0E12);
-  --sidebar: light-dark(#ECEEF5, #161A1F);
-  --card: light-dark(#F2F3FA, #111418);
-  --card-soft: light-dark(#F2F3FA, #111418);
-  --text: light-dark(#2E333A, #E2E5EF);
-  --muted: light-dark(#5B5F67, #A7ABB4);
-  --accent: light-dark(#426189, #B1C8EC);
-  --accent-ink: light-dark(#F8F8FF, #2A415F);
-  --accent-soft: light-dark(#D8E3F8, #313C4C);
-  --feature: light-dark(#AFCEFD, #3D5472);
-  --feature-ink: light-dark(#24456C, #D5E4FF);
-  --border: light-dark(#AEB2BB, #444850);
-  --field: light-dark(#DFE2EC, #22262D);
+  --bg: light-dark(#F8F9FE, #0C0E12);
+  --sidebar: light-dark(#EBEEF5, #161A1F);
+  --card: light-dark(#F1F3FA, #101418);
+  --card-soft: light-dark(#F1F3FA, #101418);
+  --text: light-dark(#2D333A, #E1E6EF);
+  --muted: light-dark(#5A5F67, #A6ABB4);
+  --accent: light-dark(#3B6287, #ADC9EA);
+  --accent-ink: light-dark(#F7F9FF, #26425E);
+  --accent-soft: light-dark(#D6E4F7, #2F3D4B);
+  --feature: light-dark(#A4CAF5, #395571);
+  --feature-ink: light-dark(#184366, #D1E5FF);
+  --border: light-dark(#ADB2BB, #434850);
+  --field: light-dark(#DEE3EC, #21262D);
+}
+
+[data-glass="off"][data-accent="emerald"] {
+  --bg: light-dark(#F6FAF6, #0B0F0D);
+  --sidebar: light-dark(#E8F0EA, #141B18);
+  --card: light-dark(#EFF5F0, #0F1512);
+  --card-soft: light-dark(#EFF5F0, #0F1512);
+  --text: light-dark(#2B3530, #DDE8E1);
+  --muted: light-dark(#57615C, #A3AEA7);
+  --accent: light-dark(#2B6A53, #A1D1BA);
+  --accent-ink: light-dark(#E5FFF1, #1A4837);
+  --accent-soft: light-dark(#CFE9DA, #2A4036);
+  --feature: light-dark(#AFF0D3, #2E5B49);
+  --feature-ink: light-dark(#1B5C46, #BDEED7);
+  --border: light-dark(#AAB4AE, #404A45);
+  --field: light-dark(#DAE5DE, #1E2823);
+}
+
+[data-glass="off"][data-accent="lavender"] {
+  --bg: light-dark(#FFF7FD, #100D11);
+  --sidebar: light-dark(#F5EBF4, #1C181E);
+  --card: light-dark(#FAF1F9, #161218);
+  --card-soft: light-dark(#FAF1F9, #161218);
+  --text: light-dark(#363039, #EDE2EE);
+  --muted: light-dark(#645D66, #B1A8B3);
+  --accent: light-dark(#705483, #D8BDE7);
+  --accent-ink: light-dark(#FFF6FD, #4C385B);
+  --accent-soft: light-dark(#EEDCF5, #43374A);
+  --feature: light-dark(#E7C5FC, #604A6E);
+  --feature-ink: light-dark(#573C6A, #F3DBFF);
+  --border: light-dark(#B8AFBA, #4C464F);
+  --field: light-dark(#EADFEB, #29242C);
+}
+
+[data-glass="off"][data-accent="sand"] {
+  --bg: light-dark(#FFF8F4, #120D08);
+  --sidebar: light-dark(#FBEBDD, #1F1810);
+  --card: light-dark(#FFF1E5, #18120B);
+  --card-soft: light-dark(#FFF1E5, #18120B);
+  --text: light-dark(#3B3125, #F4E3D1);
+  --muted: light-dark(#695D50, #B8A899);
+  --accent: light-dark(#7F571E, #EBBF8A);
+  --accent-ink: light-dark(#FFF7F3, #573A11);
+  --accent-soft: light-dark(#FCDEBC, #4B3821);
+  --feature: light-dark(#FEC884, #6C4C21);
+  --feature-ink: light-dark(#644007, #FFDEB9);
+  --border: light-dark(#BFAF9F, #51463A);
+  --field: light-dark(#F1E0CF, #2D2419);
 }
 
 [data-glass="off"][data-accent="sunset"] {
-  --bg: light-dark(#FFF8F6, #130D0A);
-  --sidebar: light-dark(#FEEAE2, #211713);
-  --card: light-dark(#FFF1EC, #1A110E);
-  --card-soft: light-dark(#FFF1EC, #1A110E);
-  --text: light-dark(#3E2F29, #F8E1D7);
-  --muted: light-dark(#6D5B54, #BCA79E);
-  --accent: light-dark(#8A5034, #F8B89C);
-  --accent-ink: light-dark(#FFF7F5, #603521);
-  --accent-soft: light-dark(#FFDBCC, #503529);
-  --feature: light-dark(#FBAF8D, #754731);
-  --feature-ink: light-dark(#602F15, #FFDCCD);
-  --border: light-dark(#C3ADA5, #54453E);
-  --field: light-dark(#F5DED4, #30231D);
+  --bg: light-dark(#FFF8F6, #130D0B);
+  --sidebar: light-dark(#FFE9E4, #221714);
+  --card: light-dark(#FFF1ED, #1A110F);
+  --card-soft: light-dark(#FFF1ED, #1A110F);
+  --text: light-dark(#3E2F2B, #F9E0DA);
+  --muted: light-dark(#6D5B56, #BCA6A1);
+  --accent: light-dark(#8C4F3D, #F9B7A5);
+  --accent-ink: light-dark(#FFF7F5, #613427);
+  --accent-soft: light-dark(#FFDBD1, #51352D);
+  --feature: light-dark(#FAAB95, #764638);
+  --feature-ink: light-dark(#5F2B1C, #FFDCD2);
+  --border: light-dark(#C3ADA7, #554440);
+  --field: light-dark(#F6DDD7, #30231F);
 }
 
 [data-glass="off"][data-accent="pink"] {
   --bg: light-dark(#FFF8F8, #120D0F);
-  --sidebar: light-dark(#FBE9EE, #20171B);
-  --card: light-dark(#FFF0F4, #191114);
-  --card-soft: light-dark(#FFF0F4, #191114);
-  --text: light-dark(#3C2F34, #F5E0E6);
-  --muted: light-dark(#6A5B60, #B9A6AC);
-  --accent: light-dark(#854E68, #EFB7CE);
-  --accent-ink: light-dark(#FFF7F8, #5C3446);
-  --accent-soft: light-dark(#FED9E6, #4D343F);
-  --feature: light-dark(#FBB5D3, #714559);
-  --feature-ink: light-dark(#64314A, #FFD9E7);
-  --border: light-dark(#C0ADB3, #524449);
-  --field: light-dark(#F2DDE4, #2E2327);
+  --sidebar: light-dark(#FBEAEF, #20171B);
+  --card: light-dark(#FFF0F4, #191115);
+  --card-soft: light-dark(#FFF0F4, #191115);
+  --text: light-dark(#3B2F34, #F4E0E7);
+  --muted: light-dark(#6A5B61, #B8A6AD);
+  --accent: light-dark(#844E6A, #EEB7D0);
+  --accent-ink: light-dark(#FFF7F8, #5B3448);
+  --accent-soft: light-dark(#FDD9E8, #4C3540);
+  --feature: light-dark(#FDB8D9, #70465B);
+  --feature-ink: light-dark(#65334E, #FFD9E9);
+  --border: light-dark(#BFADB4, #52444A);
+  --field: light-dark(#F1DDE4, #2E2328);
 }
 
 [data-glass="off"] body { font-family: "Hub Roboto", "Segoe UI", sans-serif; }
