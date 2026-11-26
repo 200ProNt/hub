@@ -506,7 +506,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="ListBox">
             <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="{DynamicResource PanelRadius}" Padding="{TemplateBinding Padding}">
+                    BorderThickness="{DynamicResource PanelStroke}" CornerRadius="{DynamicResource PanelRadius}" Padding="{TemplateBinding Padding}">
               <ScrollViewer Focusable="False" CanContentScroll="True" HorizontalScrollBarVisibility="Disabled">
                 <ItemsPresenter />
               </ScrollViewer>

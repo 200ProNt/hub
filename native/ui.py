@@ -67,6 +67,9 @@ class HubWindow:
             from System.Windows.Media.Imaging import BitmapCacheOption, BitmapCreateOptions
             self.window.Icon = BitmapFrame.Create(Uri(icon_file.as_uri()), BitmapCreateOptions.PreservePixelFormat,
                                                    BitmapCacheOption.OnLoad)
+        self.material_controls = None
+        for name in ("Control", "Primary", "Navigation"):
+            self.window.Resources["Active" + name] = self.window.FindResource(name)
         self.build_chrome()
         self.apply_theme()
         self.window.SourceInitialized += lambda *_: self.apply_theme()
@@ -124,6 +127,19 @@ class HubWindow:
         self.window.Resources["ChromeFill"] = chrome
         self.window.Resources["GlassRim"] = rim
         self.window.Resources["PanelStroke"] = Thickness(0 if style == "material" else 1)
+        material = style == "material"
+        if material and self.material_controls is None:
+            from .material_controls import MaterialControls
+            self.material_controls = MaterialControls(self.window)
+        if self.material_controls is not None:
+            self.material_controls.apply(material, dark, self.motion_enabled())
+        self.search_button.MinWidth = 248 if material else 0
+        self.search_button.Height = 52 if material else 33
+        self.search_button.SetResourceReference(Button.BackgroundProperty, "Field" if material else "Glass")
+        self.search_button.BorderThickness = Thickness(0 if material else 1)
+        self.search_button.HorizontalContentAlignment = HorizontalAlignment.Left
+        self.widget("Scroller").Padding = Thickness(16, 8, 16, 12) if material else Thickness(5, 2, 10, 5)
+        self.resize()
         self.hide_reflection()
 
     def hide_reflection(self):
@@ -153,7 +169,8 @@ class HubWindow:
         self.apply_theme()
 
     def button(self, title, callback, style="Control", icon=None):
-        button = make(Button, Style=self.window.FindResource(style), HorizontalContentAlignment=HorizontalAlignment.Center)
+        button = make(Button, HorizontalContentAlignment=HorizontalAlignment.Center)
+        button.SetResourceReference(Button.StyleProperty, "Active" + style)
         AutomationProperties.SetName(button, title)
         button.ToolTip = title
         if icon:
@@ -215,6 +232,7 @@ class HubWindow:
         ):
             button = self.button(title, callback, "Navigation", name)
             button.Width = 38
+            button.MinHeight = 0
             button.Height = 32
             button.Padding = Thickness(8, 2, 8, 2)
             button.HorizontalContentAlignment = HorizontalAlignment.Center
@@ -235,7 +253,7 @@ class HubWindow:
         self.navigation["settings"] = settings
         self.widget("NavFoot").Children.Add(settings)
 
-        search = self.button("Поиск по Hub", self.open_search)
+        search = self.search_button = self.button("Поиск по Hub", self.open_search)
         AutomationProperties.SetAcceleratorKey(search, "Ctrl+K")
         row = make(StackPanel, Orientation=Orientation.Horizontal)
         row.Children.Add(glyph("search", 16))
@@ -247,13 +265,17 @@ class HubWindow:
         self.widget("TopBar").Children.Add(search)
 
     def resize(self, *_):
-        compact = self.window.ActualWidth < 740
-        self.widget("NavColumn").Width = GridLength(64 if compact else 215)
+        compact = (self.window.ActualWidth or self.window.Width) < 740
+        material = self.settings.get("hub-style") == "material"
+        self.widget("NavColumn").Width = GridLength((80 if material else 64) if compact else (252 if material else 215))
         for caption in self.nav_labels:
             caption.Visibility = Visibility.Collapsed if compact else Visibility.Visible
         for button in self.navigation.values():
             button.HorizontalContentAlignment = HorizontalAlignment.Center if compact else HorizontalAlignment.Left
-            button.Padding = Thickness(4 if compact else 9, 5, 4 if compact else 9, 5)
+            inset = 4 if compact else (16 if material else 9)
+            button.MinHeight = 48 if material else 33
+            button.Padding = Thickness(inset, 5, inset, 5)
+            button.Margin = Thickness(0, 1, 0, 1) if material else Thickness(0)
 
     def maximize(self):
         self.window.WindowState = WindowState.Normal if self.window.WindowState == WindowState.Maximized else WindowState.Maximized
@@ -409,7 +431,11 @@ class HubWindow:
         else:
             title, hint = TITLES[target]["name"], TITLES[target]["hint"]
         heading = label(title, 31)
-        heading.FontWeight = FontWeights.SemiBold
+        if self.settings.get("hub-style") == "material":
+            heading.FontSize = 36
+            heading.FontWeight = FontWeights.Normal
+        else:
+            heading.FontWeight = FontWeights.SemiBold
         heading.Margin = Thickness(0, 0, 0, 3)
         host.Children.Add(heading)
         if hint:
@@ -549,9 +575,11 @@ class HubWindow:
             if preset.SelectedIndex >= 0:
                 glass.IsEnabled = preset.SelectedIndex == 0
                 self.change_settings(**{"hub-style": styles[preset.SelectedIndex]})
-                self.animate(page.panel)
+                self.go("settings")
 
         preset.SelectionChanged += change_style
+        if self.window.IsKeyboardFocusWithin:
+            preset.Focus()
         theme.SelectionChanged += lambda *_: theme.SelectedIndex >= 0 and self.change_settings(**{"hub-theme": ("dark", "light")[theme.SelectedIndex]})
         accent.SelectionChanged += lambda *_: accent.SelectedIndex >= 0 and self.change_settings(**{"hub-accent": accent_values[accent.SelectedIndex]})
         for control, key in ((glass, "desktop-glass"), (motion, "hub-motion"), (sound, "hub-sound")):

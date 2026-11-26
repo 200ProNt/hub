@@ -9,7 +9,7 @@ from Microsoft.Win32 import OpenFileDialog, SaveFileDialog
 from System.Windows import Clipboard, FontWeights, GridLength, MessageBox, MessageBoxButton, MessageBoxImage, MessageBoxResult
 from System.Windows import TextWrapping, Thickness, VerticalAlignment
 from System.Windows.Automation import AutomationProperties
-from System.Windows.Controls import Border, Button, CheckBox, ColumnDefinition, ComboBox, Grid, ListBox, ListBoxItem
+from System.Windows.Controls import Border, Button, CheckBox, ColumnDefinition, ComboBox, DockPanel, Dock, Grid, ListBox, ListBoxItem
 from System.Windows.Controls import Orientation, SelectionMode, StackPanel, TextBlock, TextBox, WrapPanel
 from System.Windows.Media import Geometry, PenLineCap, PenLineJoin, Stretch
 from System.Windows.Shapes import Path
@@ -59,36 +59,42 @@ class Page:
         return self.add(value)
 
     def section(self, heading):
-        title = label(heading, 17)
-        title.FontWeight = FontWeights.SemiBold
+        material = self.hub.settings.get("hub-style") == "material"
+        title = label(heading, 22 if material else 17)
+        title.FontWeight = FontWeights.Normal if material else FontWeights.SemiBold
         title.Margin = Thickness(0, 10, 0, 7)
         return self.add(title)
 
-    def group(self, title):
+    def group(self, title, field):
         column = make(StackPanel, Margin=Thickness(0, 2, 0, 8))
-        caption = label(title)
-        caption.Margin = Thickness(0, 0, 0, 4)
-        column.Children.Add(caption)
+        AutomationProperties.SetName(field, title)
+        if self.hub.settings.get("hub-style") == "material" and isinstance(field, TextBox):
+            from MaterialDesignThemes.Wpf import HintAssist
+            HintAssist.SetHint(field, title)
+            HintAssist.SetIsFloating(field, True)
+            field.MinHeight = max(56, field.MinHeight)
+        else:
+            caption = label(title)
+            caption.Margin = Thickness(0, 0, 0, 4)
+            column.Children.Add(caption)
         self.add(column)
         return column
 
     def field(self, title, value="", multiline=False):
-        column = self.group(title)
         field = make(TextBox, Text=str(value), AcceptsReturn=multiline,
                         MinHeight=96 if multiline else 34,
                         TextWrapping=TextWrapping.Wrap if multiline else TextWrapping.NoWrap,
                         VerticalContentAlignment=VerticalAlignment.Top if multiline else VerticalAlignment.Center)
-        AutomationProperties.SetName(field, title)
+        column = self.group(title, field)
         column.Children.Add(field)
         return field
 
     def _picker(self, title, value, choose):
-        column = self.group(title)
         grid = Grid()
         grid.ColumnDefinitions.Add(ColumnDefinition())
         grid.ColumnDefinitions.Add(make(ColumnDefinition, Width=GridLength.Auto))
         field = make(TextBox, Text=str(value))
-        AutomationProperties.SetName(field, title)
+        column = self.group(title, field)
         grid.Children.Add(field)
 
         def browse():
@@ -120,9 +126,8 @@ class Page:
         return self._picker(title, value, choose)
 
     def choice(self, title, values, index=0):
-        column = self.group(title)
         value = make(ComboBox, MinHeight=32)
-        AutomationProperties.SetName(value, title)
+        column = self.group(title, value)
         for item in values:
             value.Items.Add(str(item))
         value.SelectedIndex = index
@@ -133,6 +138,25 @@ class Page:
 
     def check(self, title, checked=False):
         check = make(CheckBox, Content=title, IsChecked=bool(checked))
+        if self.hub.active == "settings" and self.hub.settings.get("hub-style") == "material":
+            check.Content = None
+            check.Style = self.hub.material_controls.dictionary["MaterialDesignSwitchToggleButton"]
+            AutomationProperties.SetName(check, title)
+            row = make(DockPanel, Margin=Thickness(4, 4, 8, 4), MinHeight=44)
+            DockPanel.SetDock(check, Dock.Right)
+            row.Children.Add(check)
+            caption = label(title, 16)
+            caption.VerticalAlignment = VerticalAlignment.Center
+
+            def toggle(*_):
+                if check.IsEnabled:
+                    check.Focus()
+                    check.IsChecked = not check.IsChecked
+
+            caption.MouseLeftButtonUp += toggle
+            row.Children.Add(caption)
+            self.add(row)
+            return check
 
         def changed(*_):
             box = check.Template.FindName("Box", check) if check.Template else None

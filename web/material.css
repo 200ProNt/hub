@@ -1,0 +1,101 @@
+/* Tonal Spot 2025, те же базовые цвета и роли, что у настольного Hub. */
+@font-face { font-family: "Hub Roboto"; src: url("fonts/Roboto-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Hub Roboto"; src: url("fonts/Roboto-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Hub Roboto"; src: url("fonts/Roboto-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+
+[data-glass="off"] {
+  --bg: light-dark(#FDF7FE, #0F0D12);
+  --sidebar: light-dark(#F2ECF5, #1B181F);
+  --card: light-dark(#F8F1FA, #141218);
+  --card-soft: light-dark(#F8F1FA, #141218);
+  --text: light-dark(#34313A, #EAE3EF);
+  --muted: light-dark(#615D68, #AEA9B4);
+  --accent: light-dark(#655789, #CDC0EC);
+  --accent-ink: light-dark(#FDF7FF, #443A5F);
+  --accent-soft: light-dark(#E8DEF8, #3E384C);
+  --feature: light-dark(#D4C3FD, #574D72);
+  --feature-ink: light-dark(#493C6C, #E9DEFF);
+  --border: light-dark(#B5B0BB, #4A4650);
+  --field: light-dark(#E7E0EC, #27242D);
+}
+
+[data-glass="off"][data-accent="emerald"] {
+  --bg: light-dark(#F7FAF5, #0B0F0D);
+  --sidebar: light-dark(#E8F0E9, #141B17);
+  --card: light-dark(#EFF5EF, #0F1511);
+  --card-soft: light-dark(#EFF5EF, #0F1511);
+  --text: light-dark(#2B352F, #DEE8E0);
+  --muted: light-dark(#57615B, #A3AEA6);
+  --accent: light-dark(#2D6A51, #A2D1B8);
+  --accent-ink: light-dark(#E6FFEF, #1B4836);
+  --accent-soft: light-dark(#CFE9D9, #2A4035);
+  --feature: light-dark(#B1F0D0, #2F5B47);
+  --feature-ink: light-dark(#1E5C44, #BEEED4);
+  --border: light-dark(#AAB4AD, #404A44);
+  --field: light-dark(#DBE5DD, #1F2823);
+}
+
+[data-glass="off"][data-accent="ocean"] {
+  --bg: light-dark(#F9F9FE, #0C0E12);
+  --sidebar: light-dark(#ECEEF5, #161A1F);
+  --card: light-dark(#F2F3FA, #111418);
+  --card-soft: light-dark(#F2F3FA, #111418);
+  --text: light-dark(#2E333A, #E2E5EF);
+  --muted: light-dark(#5B5F67, #A7ABB4);
+  --accent: light-dark(#426189, #B1C8EC);
+  --accent-ink: light-dark(#F8F8FF, #2A415F);
+  --accent-soft: light-dark(#D8E3F8, #313C4C);
+  --feature: light-dark(#AFCEFD, #3D5472);
+  --feature-ink: light-dark(#24456C, #D5E4FF);
+  --border: light-dark(#AEB2BB, #444850);
+  --field: light-dark(#DFE2EC, #22262D);
+}
+
+[data-glass="off"][data-accent="sunset"] {
+  --bg: light-dark(#FFF8F6, #130D0A);
+  --sidebar: light-dark(#FEEAE2, #211713);
+  --card: light-dark(#FFF1EC, #1A110E);
+  --card-soft: light-dark(#FFF1EC, #1A110E);
+  --text: light-dark(#3E2F29, #F8E1D7);
+  --muted: light-dark(#6D5B54, #BCA79E);
+  --accent: light-dark(#8A5034, #F8B89C);
+  --accent-ink: light-dark(#FFF7F5, #603521);
+  --accent-soft: light-dark(#FFDBCC, #503529);
+  --feature: light-dark(#FBAF8D, #754731);
+  --feature-ink: light-dark(#602F15, #FFDCCD);
+  --border: light-dark(#C3ADA5, #54453E);
+  --field: light-dark(#F5DED4, #30231D);
+}
+
+[data-glass="off"][data-accent="pink"] {
+  --bg: light-dark(#FFF8F8, #120D0F);
+  --sidebar: light-dark(#FBE9EE, #20171B);
+  --card: light-dark(#FFF0F4, #191114);
+  --card-soft: light-dark(#FFF0F4, #191114);
+  --text: light-dark(#3C2F34, #F5E0E6);
+  --muted: light-dark(#6A5B60, #B9A6AC);
+  --accent: light-dark(#854E68, #EFB7CE);
+  --accent-ink: light-dark(#FFF7F8, #5C3446);
+  --accent-soft: light-dark(#FED9E6, #4D343F);
+  --feature: light-dark(#FBB5D3, #714559);
+  --feature-ink: light-dark(#64314A, #FFD9E7);
+  --border: light-dark(#C0ADB3, #524449);
+  --field: light-dark(#F2DDE4, #2E2327);
+}
+
+[data-glass="off"] body { font-family: "Hub Roboto", "Segoe UI", sans-serif; }
+[data-glass="off"] :is(.btn, .nav-item, .theme-toggle, .search) { border-radius: 100px; }
+[data-glass="off"] .btn { min-height: 40px; padding-inline: 20px; font-weight: 500; }
+[data-glass="off"] .btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+[data-glass="off"] .sidebar { border: 0; padding-block: 20px; }
+[data-glass="off"] .nav-item { min-height: 48px; font-size: 14px; }
+[data-glass="off"] .nav-item.is-active { border-color: transparent; background: var(--accent-soft); color: var(--text); }
+[data-glass="off"] .workspace-head h2 { font-size: 32px; line-height: 1.25; font-weight: 400; }
+[data-glass="off"] .card { border: 0; box-shadow: none; background: var(--card-soft); border-radius: 20px; }
+[data-glass="off"] .home-hero { background: var(--feature); color: var(--feature-ink); padding: 24px; }
+[data-glass="off"] .search { min-height: 48px; background: var(--sidebar); border: 0; }
+[data-glass="off"] .home-quick-input { min-height: 52px; background: var(--field); border-radius: 4px 4px 0 0; border-width: 0 0 1px; }
+@media (min-width: 900px) {
+  [data-glass="off"] .shell { grid-template-columns: 252px minmax(0, 1fr); }
+  [data-glass="off"] .nav-item { padding-inline: 16px; }
+}

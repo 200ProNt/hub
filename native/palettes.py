@@ -37,6 +37,7 @@ def _tint(color, accent, amount):
 MATERIAL_ROLES = {
     "Ink": "onSurface", "Muted": "onSurfaceVariant", "Solid": "surface", "Tint": "surface",
     "Glass": "surfaceContainer", "Layer": "surfaceContainerLow", "Field": "surfaceContainerHighest",
+    "Feature": "primaryContainer", "FeatureInk": "onPrimaryContainer", "Secondary": "secondary",
     "Hover": "secondaryContainer", "Edge": "outlineVariant", "Accent": "primary",
     "AccentInk": "onPrimary", "Selected": "secondaryContainer", "Track": "surfaceContainerHigh",
 }
@@ -62,4 +63,4 @@ def palette(style, theme, accent, system_accent=None):
         colors["AccentInk"] = "#18141D" if theme == "dark" else "#FFFFFF"
         for key in ("Glass", "Layer", "Field", "Hover", "Edge", "Selected", "Track"):
             colors[key] = _tint(colors[key], chosen, .22 if key in ("Hover", "Selected", "Track") else .09)
-    return colors
+    return dict(colors, Feature=colors["Layer"], FeatureInk=colors["Ink"])

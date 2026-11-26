@@ -2979,15 +2979,6 @@ html[data-motion="off"] .clip {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-[data-glass="off"] {
-  --bg: color-mix(in oklab, var(--accent) 4%, var(--card));
-  --sidebar: color-mix(in oklab, var(--accent) 12%, var(--card));
-  --card-soft: color-mix(in oklab, var(--accent) 7%, var(--card));
-  --radius-lg: 20px;
-  --radius-md: 12px;
-}
-[data-glass="off"] :is(.btn, .nav-item, .theme-toggle) { border-radius: 100px; }
-
 [data-glass="on"] body {
   background: radial-gradient(ellipse at 8% 8%, var(--glass-glow-1), transparent 54%),
               radial-gradient(ellipse at 90% 78%, var(--glass-glow-2), transparent 60%),

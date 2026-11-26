@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Python = 'py',
     [string]$Output = (Join-Path $PSScriptRoot '..\dist'),
     [string]$InnoSetup
@@ -15,7 +15,7 @@ try {
     if ($LASTEXITCODE) { throw 'Не удалось создать значок Hub' }
     & $Python -m PyInstaller --noconfirm --onefile --windowed --name Hub `
         --icon $icon --specpath $build --workpath $build --distpath $Output `
-        --add-data "$icon;." --add-data "$root\native\window.xaml;native" --add-data "$root\README.md;." `
+        --add-data "$root/native/material;native/material" --add-data "$root/web/fonts;web/fonts" --add-data "$icon;." --add-data "$root\native\window.xaml;native" --add-data "$root\README.md;." `
         --add-data "$root\web\drop.html;web" --add-data "$root\web\transfer.html;web" `
         --add-data "$root\web\transfer.js;web" `
         --add-data "$root\LICENSE;." "$root\desktop.py"

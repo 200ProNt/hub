@@ -4,8 +4,8 @@ from urllib.parse import quote
 
 from System import DateTime, TimeSpan
 from System.Globalization import CultureInfo
-from System.Windows import Thickness, Visibility
-from System.Windows.Controls import Border, StackPanel
+from System.Windows import GridLength, Thickness, Visibility
+from System.Windows.Controls import Border, ColumnDefinition, Grid, RowDefinition, StackPanel
 from System.Windows.Input import Key, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherTimer
 
@@ -28,18 +28,18 @@ def listen(page, field, changed):
     page.on_leave(timer.Stop)
 
 
-def card(page, build):
+def card(page, build, featured=False):
     parent = page.panel
     inner = StackPanel()
     surface = make(Border, Padding=Thickness(18, 13, 18, 12), Margin=Thickness(0, 8, 0, 7), Child=inner)
     surface.SetResourceReference(Border.CornerRadiusProperty, "PanelRadius")
     surface.SetResourceReference(Border.BorderThicknessProperty, "PanelStroke")
-    surface.SetResourceReference(Border.BackgroundProperty, "Layer")
+    surface.SetResourceReference(Border.BackgroundProperty, "Feature" if featured else "Layer")
     surface.SetResourceReference(Border.BorderBrushProperty, "Edge")
     page.add(surface)
     page.panel = inner
     try:
-        return build()
+        return surface, build()
     finally:
         page.panel = parent
 
@@ -59,7 +59,8 @@ def home(page):
     page.text(date[0].upper() + date[1:], 14, muted=True)
 
     def quick_actions():
-        page.section("Быстрая запись")
+        heading = page.section("Быстрая запись")
+        heading.SetResourceReference(type(heading).ForegroundProperty, "FeatureInk")
         field = page.field("Текст заметки или буфера")
 
         def store_note():
@@ -74,7 +75,7 @@ def home(page):
 
         page.actions(("Сохранить заметку", store_note, True), ("Скопировать", lambda: page.copy(field.Text)),
                      ("Открыть заметки", lambda: page.go("notes")))
-    card(page, quick_actions)
+    card(page, quick_actions, featured=True)
 
     def recent():
         page.section("Незавершённые дела")
@@ -113,10 +114,37 @@ def home(page):
             page.go("notes", selected["text"])
 
     todo_items = []
-    todos = card(page, recent)
-    page.section("Буфер обмена")
-    clips = page.rows(max_height=130)
-    page.actions(("Вся история", lambda: page.go("clipboard")), ("Мониторинг ПК", lambda: page.go("monitor")))
+
+    def clipboard_card():
+        page.section("Буфер обмена")
+        result = page.rows(max_height=130)
+        page.actions(("Вся история", lambda: page.go("clipboard")), ("Мониторинг ПК", lambda: page.go("monitor")))
+        return result
+
+    left, todos = card(page, recent)
+    if page.hub.settings.get("hub-style") == "material":
+        right, clips = card(page, clipboard_card)
+        pair = Grid()
+        for child in (left, right):
+            page.panel.Children.Remove(child)
+            pair.Children.Add(child)
+            pair.ColumnDefinitions.Add(ColumnDefinition())
+            pair.RowDefinitions.Add(make(RowDefinition, Height=GridLength.Auto))
+
+        def arrange(*_):
+            wide = pair.ActualWidth >= 640
+            Grid.SetColumnSpan(left, 1 if wide else 2)
+            Grid.SetColumn(right, 1 if wide else 0)
+            Grid.SetColumnSpan(right, 1 if wide else 2)
+            Grid.SetRow(right, 0 if wide else 1)
+            left.Margin = Thickness(0, 8, 6 if wide else 0, 7)
+            right.Margin = Thickness(6 if wide else 0, 8, 0, 7)
+
+        arrange()
+        pair.SizeChanged += arrange
+        page.add(pair)
+    else:
+        clips = clipboard_card()
     info = page.text("", 13, muted=True)
 
     def render(summary_data):
