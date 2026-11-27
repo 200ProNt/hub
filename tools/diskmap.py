@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import os
 from contextlib import closing
+from dataclasses import dataclass
 import stat
 import threading
 import time
 from pathlib import Path
+from uuid import uuid4
 
 from tools import fileguard, trash
 
@@ -25,6 +27,7 @@ MAX_DEPTH = 60
 CACHE_TTL = 90.0
 MAX_CACHE = 64
 MAX_ERRORS = 25
+FILE_PAGE_SIZE = 100
 FILE_ATTRIBUTE_REPARSE_POINT = fileguard.FILE_ATTRIBUTE_REPARSE_POINT
 PROTECTED_NAMES = ("$recycle.bin", "system volume information")
 PROTECTED_TOP_NAMES = ("windows", "program files", "program files (x86)", "programdata")
@@ -38,8 +41,18 @@ class RemoveError(RuntimeError):
     """Файл не прошёл проверку перед удалением."""
 
 
+@dataclass
+class FileListing:
+    token: str
+    root: Path
+    parents: tuple
+    files: list[dict]
+    truncated: bool
+
+
 _cache: dict[str, tuple[float, dict]] = {}
 _allowed: dict[str, tuple] = {}
+_file_listing: FileListing | None = None
 _actions_lock = threading.RLock()
 _cache_lock = threading.Lock()
 _cache_generation = 0
@@ -58,8 +71,17 @@ def _identity(info: os.stat_result) -> tuple:
     return fileguard.identity(info)
 
 
-def files(folder: str) -> dict:
+def close_file_listing() -> None:
+    global _file_listing
     with _actions_lock:
+        _file_listing = None
+        _allowed.clear()
+
+
+def files(folder: str, *, paged: bool = False) -> dict:
+    global _file_listing
+    with _actions_lock:
+        _file_listing = None
         _allowed.clear()
         if not folder or not folder.strip():
             raise ScanError("Укажи папку")
@@ -81,24 +103,70 @@ def files(folder: str) -> dict:
                         truncated = True
                         break
                     try:
-                        info = os.lstat(entry.path)
+                        info = entry.stat(follow_symlinks=False) if paged else os.lstat(entry.path)
                     except OSError as exc:
                         _note_error(counters, entry.path, str(exc))
                         continue
                     if not stat.S_ISREG(info.st_mode) or _is_link(info):
                         continue
                     listing.append({"name": entry.name, "path": entry.path, "size": info.st_size})
-                    allowed[os.path.normcase(entry.path)] = (_identity(info), parents)
-            if _parents(root) != parents:
+                    if not paged:
+                        allowed[os.path.normcase(entry.path)] = (_identity(info), parents)
+            if not paged and _parents(root) != parents:
                 raise ScanError("Папка изменилась; открой её заново")
         except OSError as exc:
             raise ScanError(f"Не получилось прочитать папку: {exc}") from exc
         listing.sort(key=lambda item: (-item["size"], item["name"].lower()))
+        if paged:
+            _file_listing = FileListing(uuid4().hex, root, parents, listing, truncated)
+            return file_page(_file_listing.token, 0, counters)
         _allowed.update(allowed)
         return {"folder": str(root), "files": listing, "truncated": truncated, "errors": counters["errors"]}
 
 
-def remove_file(path: str, mode: str, confirmed=False) -> dict:
+def file_page(token: str, offset: int, counters=None) -> dict:
+    with _actions_lock:
+        listing = _file_listing
+        if listing is None or listing.token != token:
+            raise ScanError("Список файлов устарел; открой его заново")
+        if type(offset) is not int or not 0 <= offset <= len(listing.files) or offset % FILE_PAGE_SIZE:
+            raise ScanError("Неверная страница списка файлов")
+        counters = {"errors": []} if counters is None else counters
+        rows, allowed = [], {}
+        end = offset + FILE_PAGE_SIZE
+        try:
+            if _parents(listing.root) != listing.parents:
+                raise ScanError("Папка изменилась; открой её заново")
+            for item in listing.files[offset:end]:
+                path = item["path"]
+                try:
+                    # The directory index provides ordering. Only lstat can authorize actions.
+                    info = os.lstat(path)
+                except OSError as exc:
+                    _note_error(counters, path, str(exc))
+                    continue
+                key = os.path.normcase(path)
+                identity = (_identity(info), listing.parents)
+                if (not stat.S_ISREG(info.st_mode) or _is_link(info) or info.st_size != item["size"]
+                        or _allowed.get(key, identity) != identity):
+                    _note_error(counters, path, "Файл изменился; открой список заново")
+                    continue
+                rows.append(item)
+                allowed[key] = identity
+            if _parents(listing.root) != listing.parents:
+                raise ScanError("Папка изменилась; открой её заново")
+        except ScanError:
+            close_file_listing()
+            raise
+        _allowed.update(allowed)
+        return {
+            "folder": str(listing.root), "files": rows, "count": len(listing.files),
+            "listing": listing.token, "next_offset": end if end < len(listing.files) else None,
+            "truncated": listing.truncated, "errors": counters["errors"],
+        }
+
+
+def remove_file(path: str, mode: str, confirmed=False, *, listing=None) -> dict:
     with _actions_lock:
         if mode not in ("trash", "delete"):
             raise RemoveError("Выбери перенос в корзину или удаление навсегда")
@@ -107,7 +175,7 @@ def remove_file(path: str, mode: str, confirmed=False) -> dict:
         item = Path(os.path.abspath(Path(path).expanduser()))
         key = os.path.normcase(str(item))
         authorized = _allowed.get(key)
-        if authorized is None:
+        if authorized is None or listing != (_file_listing.token if _file_listing is not None else None):
             raise RemoveError("Этот файл не из последнего списка; открой папку заново")
         try:
             info = item.lstat()
@@ -142,7 +210,7 @@ def undo(run_id: str) -> dict:
         except (OSError, trash.TrashError) as exc:
             raise RemoveError(str(exc)) from exc
         finally:
-            _allowed.clear()
+            close_file_listing()
             _invalidate_cache()
 
 

@@ -96,7 +96,7 @@ def _undo(page, tool, changed):
     return lambda: page.run(lambda: page.get(f"{endpoint}/last-run"), act, tr("Checking history…", "Проверяю историю…"))
 
 
-def _remove(page, tool, items, mode, changed, folder=""):
+def _remove(page, tool, items, mode, changed, folder="", *, listing=None):
     if not items:
         page.notice(tr("Select what to remove.", "Выбери, что убрать."))
         return
@@ -129,6 +129,8 @@ def _remove(page, tool, items, mode, changed, folder=""):
         body.update(files=paths, folder=folder)
     else:
         body["path"] = paths[0]
+    if listing is not None:
+        body["listing"] = listing
     page.run(
         lambda: page.post(f"/api/{tool}/remove", body),
         lambda result: changed(_result_text(result, "removed", tr("Deleted", "Удалено") if deleting else tr("Moved to Hub Trash", "В корзину Хаба"))),
@@ -585,7 +587,8 @@ def _diskmap(page):
     from System.Windows.Input import Key
 
     folder = page.folder(tr("Folder or drive", "Папка или диск"), page.default_folder)
-    state = {"data": None, "files": [], "files_open": False, "limit": 100, "cancel": None}
+    state = {"data": None, "files": [], "files_open": False, "count": 0,
+             "listing": None, "next_offset": None, "cancel": None}
 
     def cancel_scan():
         if state["cancel"] is not None:
@@ -662,8 +665,8 @@ def _diskmap(page):
     files_box.Visibility = Visibility.Collapsed
 
     def render_files():
-        visible = state["files"][:state["limit"]] if state["files_open"] else []
-        count = len(state["files"])
+        visible = state["files"] if state["files_open"] else []
+        count = state["count"]
         file_summary.Text = tr(f"Files in this folder · Showing {len(visible)} of {count}",
                                f"Файлы в этой папке · Показано {len(visible)} из {count}") if state["files_open"] else ""
         files_box.Visibility = Visibility.Visible if state["files_open"] else Visibility.Collapsed
@@ -672,11 +675,23 @@ def _diskmap(page):
             page.hub.animate(files_box, "sheet")
 
     def more_files():
-        if state["files_open"] and state["limit"] < len(state["files"]):
-            state["limit"] += 100
+        if not state["files_open"] or state["next_offset"] is None or page.busy:
+            return
+        body = {"listing": state["listing"], "offset": state["next_offset"]}
+
+        def done(listing):
+            state["files"].extend(listing["files"])
+            state["next_offset"] = listing["next_offset"]
             render_files()
+            if warnings := _warnings(listing):
+                page.notice(warnings)
+
+        page.run(lambda: page.post("/api/diskmap/files/page", body), done,
+                 tr("Opening file list…", "Открываю список файлов…"))
 
     def hide_files():
+        if page.busy:
+            return
         state["files_open"] = False
         render_files()
 
@@ -687,10 +702,11 @@ def _diskmap(page):
         if state["data"].get("read_only_root"):
             page.notice(tr("Choose a subfolder to view its files.", "Для списка файлов выбери подпапку."))
             return
-        body = {"folder": state["data"]["folder"]}
+        body = {"folder": state["data"]["folder"], "paged": True}
 
         def done(listing):
-            state.update(files=listing["files"], files_open=True, limit=100)
+            state.update(files=listing["files"], files_open=True, count=listing["count"],
+                         listing=listing["listing"], next_offset=listing["next_offset"])
             render_files()
             if warnings := _warnings(listing):
                 page.notice(warnings)
@@ -698,9 +714,9 @@ def _diskmap(page):
         page.run(lambda: page.post("/api/diskmap/files", body), done, tr("Opening file list…", "Открываю список файлов…"))
 
     def selected_files():
-        if not state["files_open"]:
+        if not state["files_open"] or page.busy:
             return []
-        return page.selected(files_box, state["files"][:state["limit"]])
+        return page.selected(files_box, state["files"])
 
     def reveal_file():
         chosen = selected_files()
@@ -709,12 +725,13 @@ def _diskmap(page):
     def scan(path, include_files=False, status=""):
         if not path or page.busy:
             return
+        hide_files()
 
         def done(data):
             if data is None or cancel.is_set():
                 page.notice(tr("Scan cancelled.", "Расчёт отменён."))
                 return
-            state.update(data=data, files=[], files_open=False, limit=100)
+            state.update(data=data, files=[], count=0, listing=None, next_offset=None)
             folder.Text = data["folder"]
             counts = tr(f"{data['dirs']} folders · {data['files']} files",
                         f"Папок: {data['dirs']} · Файлов: {data['files']}")
@@ -776,9 +793,12 @@ def _diskmap(page):
         (tr("Hide file list", "Скрыть файлы"), hide_files),
         (tr("Show file in File Explorer", "Показать файл в Проводнике"), reveal_file),
     )
+    def remove(mode):
+        _remove(page, "diskmap", selected_files(), mode, refresh, listing=state["listing"])
+
     page.actions(
-        (tr("Move file to Hub Trash", "Файл в корзину Хаба"), lambda: _remove(page, "diskmap", selected_files(), "trash", refresh)),
-        (tr("Delete file permanently", "Удалить файл навсегда"), lambda: _remove(page, "diskmap", selected_files(), "delete", refresh)),
+        (tr("Move file to Hub Trash", "Файл в корзину Хаба"), lambda: remove("trash")),
+        (tr("Delete file permanently", "Удалить файл навсегда"), lambda: remove("delete")),
     )
 
 

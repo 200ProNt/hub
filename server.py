@@ -52,12 +52,27 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.6.0.1"
+VERSION = "1.6.1"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
     {
         "version": VERSION,
+        "tag": "1.6.1-beta.1",
+        "date": "2026-11-27",
+        "title": "Быстрое открытие списка файлов",
+        "title_en": "Faster opening of the file list",
+        "items": [
+            "Карта диска быстрее показывает первые 100 файлов в большой папке.",
+            "«Показать ещё файлы» подгружает следующую сотню. При переходе между папками старый список закрывается.",
+        ],
+        "items_en": [
+            "Disk Map displays the first 100 files in a large folder faster.",
+            "Show more files loads the next 100. Navigating to another folder closes the previous list.",
+        ],
+    },
+    {
+        "version": "1.6.0.1",
         "tag": "1.6.0.1-beta.1",
         "date": "2026-11-27",
         "title": "Исправление запуска и каналы обновлений",
@@ -636,6 +651,7 @@ def open_in_explorer(path: str) -> None:
 
 
 def _scan_diskmap(folder, selected_rust, job):
+    diskmap.close_file_listing()
     if selected_rust:
         try:
             result = rust_diskmap.scan(folder, allow_volume_root=True, control=job)
@@ -1215,14 +1231,19 @@ class HubHandler(BaseHTTPRequestHandler):
             return status
 
         if path == "/api/diskmap/scan":
+            diskmap.close_file_listing()
             return diskmap.scan(str(body.get("folder", "")))
 
         if path == "/api/diskmap/files":
-            return diskmap.files(str(body.get("folder", "")))
+            return diskmap.files(str(body.get("folder", "")), paged=body.get("paged") is True)
+
+        if path == "/api/diskmap/files/page":
+            return diskmap.file_page(body.get("listing"), body.get("offset"))
 
         if path == "/api/diskmap/remove":
             return diskmap.remove_file(
-                str(body.get("path", "")), str(body.get("mode", "")), body.get("confirmed", False)
+                str(body.get("path", "")), str(body.get("mode", "")), body.get("confirmed", False),
+                listing=body.get("listing"),
             )
 
         if path == "/api/diskmap/undo":

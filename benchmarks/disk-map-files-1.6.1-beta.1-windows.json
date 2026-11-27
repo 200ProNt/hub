@@ -1,0 +1,742 @@
+{
+  "reference_revision": "7ef459ecc4aaec8e4edd065dcea90df7efa95ef0",
+  "candidate": "1.6.1-beta.1 paging implementation",
+  "rust_probe_toolchain": "rustc 1.100.0 x86_64-pc-windows-gnu",
+  "os": "Windows-11-10.0.26340-SP0",
+  "python": "3.13.17",
+  "logical_cpus": 12,
+  "fixture_drive": "C:\\",
+  "method": "alternating source processes, warm OS cache, WPF animation off, profile runs separate",
+  "results": {
+    "wide-small": {
+      "files": 50,
+      "candidate": {
+        "samples": [
+          {
+            "dispatch_ms": 2.8910999972140417,
+            "server_ms": 5.076700002973666,
+            "response_encode_and_transfer_ms": 0.41769999734242447,
+            "decode_ms": 0.0518000015290454,
+            "wpf_dispatch_layout_render_ms": 29.155399999581277,
+            "click_to_first_rows_ms": 37.592699998640455,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.5738999973109458,
+            "server_ms": 4.87980000252719,
+            "response_encode_and_transfer_ms": 0.4034999983559828,
+            "decode_ms": 0.06520000169984996,
+            "wpf_dispatch_layout_render_ms": 10.716299999330658,
+            "click_to_first_rows_ms": 17.638699999224627,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.7632999988563824,
+            "server_ms": 5.033299999922747,
+            "response_encode_and_transfer_ms": 0.4360000020824373,
+            "decode_ms": 0.055900000006658956,
+            "wpf_dispatch_layout_render_ms": 8.252699997683521,
+            "click_to_first_rows_ms": 15.541199998551747,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.8229000015708152,
+            "server_ms": 5.1991000000271015,
+            "response_encode_and_transfer_ms": 0.5065000004833564,
+            "decode_ms": 0.05239999882178381,
+            "wpf_dispatch_layout_render_ms": 8.293499999126652,
+            "click_to_first_rows_ms": 15.87440000002971,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.5526999995927326,
+            "server_ms": 4.489300001296215,
+            "response_encode_and_transfer_ms": 0.3875999973388389,
+            "decode_ms": 0.05360000068321824,
+            "wpf_dispatch_layout_render_ms": 10.45190000149887,
+            "click_to_first_rows_ms": 16.935100000409875,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 3.0780999986745883,
+            "server_ms": 5.708600001526065,
+            "response_encode_and_transfer_ms": 0.3411999969102908,
+            "decode_ms": 0.05660000169882551,
+            "wpf_dispatch_layout_render_ms": 30.12039999885019,
+            "click_to_first_rows_ms": 39.30489999765996,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 2.1172999986447394,
+            "server_ms": 5.390800000895979,
+            "response_encode_and_transfer_ms": 0.4890000018349383,
+            "decode_ms": 0.07759999789413996,
+            "wpf_dispatch_layout_render_ms": 10.648600000422448,
+            "click_to_first_rows_ms": 18.723299999692244,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.9385000014153775,
+            "server_ms": 5.220999999437481,
+            "response_encode_and_transfer_ms": 0.3651000006357208,
+            "decode_ms": 0.08230000094044954,
+            "wpf_dispatch_layout_render_ms": 11.05959999767947,
+            "click_to_first_rows_ms": 18.6665000001085,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.6328999990946613,
+            "server_ms": 4.709500000899425,
+            "response_encode_and_transfer_ms": 0.36439999894355424,
+            "decode_ms": 0.052200000936863944,
+            "wpf_dispatch_layout_render_ms": 11.157099997944897,
+            "click_to_first_rows_ms": 17.9160999978194,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.6108999989228323,
+            "server_ms": 4.779300001246156,
+            "response_encode_and_transfer_ms": 0.4377999975986313,
+            "decode_ms": 0.058900001022266224,
+            "wpf_dispatch_layout_render_ms": 10.38200000039069,
+            "click_to_first_rows_ms": 17.268899999180576,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 3.1220999990182463,
+            "server_ms": 4.713300000730669,
+            "response_encode_and_transfer_ms": 0.4948999994667247,
+            "decode_ms": 0.05959999907645397,
+            "wpf_dispatch_layout_render_ms": 25.14539999901899,
+            "click_to_first_rows_ms": 33.535299997311085,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.5320000020437874,
+            "server_ms": 5.549999998038402,
+            "response_encode_and_transfer_ms": 0.5049999999755528,
+            "decode_ms": 0.06470000153058209,
+            "wpf_dispatch_layout_render_ms": 9.506599999440368,
+            "click_to_first_rows_ms": 17.158300001028692,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.5851999996812083,
+            "server_ms": 5.873499998415355,
+            "response_encode_and_transfer_ms": 0.545900002180133,
+            "decode_ms": 0.076299998909235,
+            "wpf_dispatch_layout_render_ms": 8.782599998085061,
+            "click_to_first_rows_ms": 16.863499997270992,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.5287999995052814,
+            "server_ms": 6.015300001308788,
+            "response_encode_and_transfer_ms": 0.4269999990356155,
+            "decode_ms": 0.060999998822808266,
+            "wpf_dispatch_layout_render_ms": 11.934000001929235,
+            "click_to_first_rows_ms": 19.966100000601728,
+            "response_bytes": 7923
+          },
+          {
+            "dispatch_ms": 1.9208000012440607,
+            "server_ms": 5.193299999518786,
+            "response_encode_and_transfer_ms": 0.42299999768147245,
+            "decode_ms": 0.07159999950090423,
+            "wpf_dispatch_layout_render_ms": 10.144100000616163,
+            "click_to_first_rows_ms": 17.752799998561386,
+            "response_bytes": 7923
+          }
+        ],
+        "profiles": [
+          {
+            "metadata_ms": 1.3292000000000002,
+            "sort_ms": 0.053700000000000005,
+            "authorization_calls_ms": 0.0974
+          },
+          {
+            "metadata_ms": 1.6821000000000002,
+            "sort_ms": 0.0346,
+            "authorization_calls_ms": 0.11110000000000002
+          },
+          {
+            "metadata_ms": 1.3315,
+            "sort_ms": 0.0342,
+            "authorization_calls_ms": 0.09080000000000002
+          }
+        ],
+        "median": {
+          "dispatch_ms": 1.7632999988563824,
+          "server_ms": 5.193299999518786,
+          "response_encode_and_transfer_ms": 0.4269999990356155,
+          "decode_ms": 0.05959999907645397,
+          "wpf_dispatch_layout_render_ms": 10.648600000422448,
+          "click_to_first_rows_ms": 17.752799998561386,
+          "response_bytes": 7923
+        }
+      },
+      "reference": {
+        "samples": [
+          {
+            "dispatch_ms": 3.0583000007027294,
+            "server_ms": 5.199399998673471,
+            "response_encode_and_transfer_ms": 0.40520000038668513,
+            "decode_ms": 0.05080000119050965,
+            "wpf_dispatch_layout_render_ms": 29.624999999214197,
+            "click_to_first_rows_ms": 38.33870000016759,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 7.5488000002224,
+            "server_ms": 6.632900000113295,
+            "response_encode_and_transfer_ms": 0.47370000174851157,
+            "decode_ms": 0.07919999916339293,
+            "wpf_dispatch_layout_render_ms": 10.891000001720386,
+            "click_to_first_rows_ms": 25.625600002967985,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.7998000002990011,
+            "server_ms": 6.0427999997045845,
+            "response_encode_and_transfer_ms": 0.38189999759197235,
+            "decode_ms": 0.05570000212173909,
+            "wpf_dispatch_layout_render_ms": 8.23579999996582,
+            "click_to_first_rows_ms": 16.515999999683117,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.7820999964897055,
+            "server_ms": 4.626600002666237,
+            "response_encode_and_transfer_ms": 0.47229999836417846,
+            "decode_ms": 0.0732000007701572,
+            "wpf_dispatch_layout_render_ms": 9.342800000013085,
+            "click_to_first_rows_ms": 16.296999998303363,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.6809000007924624,
+            "server_ms": 5.238400000962429,
+            "response_encode_and_transfer_ms": 0.42019999818876386,
+            "decode_ms": 0.07610000102431513,
+            "wpf_dispatch_layout_render_ms": 13.027699998929165,
+            "click_to_first_rows_ms": 20.443299999897135,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 3.653100000519771,
+            "server_ms": 4.912599997624056,
+            "response_encode_and_transfer_ms": 0.42320000284234993,
+            "decode_ms": 0.09279999721911736,
+            "wpf_dispatch_layout_render_ms": 28.208100000483682,
+            "click_to_first_rows_ms": 37.28979999868898,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.6622999974060804,
+            "server_ms": 5.337200000212761,
+            "response_encode_and_transfer_ms": 0.5751999997301027,
+            "decode_ms": 0.081900001532631,
+            "wpf_dispatch_layout_render_ms": 12.213900001370348,
+            "click_to_first_rows_ms": 19.870500000251923,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.415800001268508,
+            "server_ms": 4.117500000575092,
+            "response_encode_and_transfer_ms": 0.4076000004715752,
+            "decode_ms": 0.059699999837903306,
+            "wpf_dispatch_layout_render_ms": 7.963799998833565,
+            "click_to_first_rows_ms": 13.964400000986643,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.7345000014756806,
+            "server_ms": 4.545199997664895,
+            "response_encode_and_transfer_ms": 0.4211000014038291,
+            "decode_ms": 0.049700000090524554,
+            "wpf_dispatch_layout_render_ms": 9.3005999988236,
+            "click_to_first_rows_ms": 16.05109999945853,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.5003000007709488,
+            "server_ms": 4.5466999981726985,
+            "response_encode_and_transfer_ms": 0.4098999997950159,
+            "decode_ms": 0.053899999329587445,
+            "wpf_dispatch_layout_render_ms": 18.745400000625523,
+            "click_to_first_rows_ms": 25.256199998693774,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 2.4142000002029818,
+            "server_ms": 4.873400001088157,
+            "response_encode_and_transfer_ms": 0.5604999969364144,
+            "decode_ms": 0.053400002798298374,
+            "wpf_dispatch_layout_render_ms": 26.625299997249385,
+            "click_to_first_rows_ms": 34.52679999827524,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.444699999410659,
+            "server_ms": 5.768600000010338,
+            "response_encode_and_transfer_ms": 0.3510000024107285,
+            "decode_ms": 0.04809999882127158,
+            "wpf_dispatch_layout_render_ms": 9.15040000109002,
+            "click_to_first_rows_ms": 16.762800001743017,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.5353000017057639,
+            "server_ms": 4.111999998713145,
+            "response_encode_and_transfer_ms": 0.3696999992826022,
+            "decode_ms": 0.04809999882127158,
+            "wpf_dispatch_layout_render_ms": 8.254000000306405,
+            "click_to_first_rows_ms": 14.319099998829188,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.4421000014408492,
+            "server_ms": 4.219900001771748,
+            "response_encode_and_transfer_ms": 0.36360000012791716,
+            "decode_ms": 0.06509999730042182,
+            "wpf_dispatch_layout_render_ms": 10.756400002719602,
+            "click_to_first_rows_ms": 16.847100003360538,
+            "response_bytes": 7842
+          },
+          {
+            "dispatch_ms": 1.3882999992347322,
+            "server_ms": 4.222999999910826,
+            "response_encode_and_transfer_ms": 0.34470000173314475,
+            "decode_ms": 0.048499998229090124,
+            "wpf_dispatch_layout_render_ms": 7.808800000930205,
+            "click_to_first_rows_ms": 13.813300000037998,
+            "response_bytes": 7842
+          }
+        ],
+        "profiles": [
+          {
+            "metadata_ms": 1.2858000000000003,
+            "sort_ms": 0.044500000000000005,
+            "authorization_calls_ms": 0.0869
+          },
+          {
+            "metadata_ms": 1.6521000000000003,
+            "sort_ms": 0.047900000000000005,
+            "authorization_calls_ms": 0.1116
+          },
+          {
+            "metadata_ms": 1.5933000000000002,
+            "sort_ms": 0.0343,
+            "authorization_calls_ms": 0.10110000000000001
+          }
+        ],
+        "median": {
+          "dispatch_ms": 1.6809000007924624,
+          "server_ms": 4.873400001088157,
+          "response_encode_and_transfer_ms": 0.4098999997950159,
+          "decode_ms": 0.05570000212173909,
+          "wpf_dispatch_layout_render_ms": 10.756400002719602,
+          "click_to_first_rows_ms": 16.847100003360538,
+          "response_bytes": 7842
+        }
+      },
+      "metadata_probe": {
+        "python_lstat": {
+          "samples_ms": [
+            1.616099998500431,
+            1.4354000013554469,
+            2.0874000001640525,
+            1.5887000008660834,
+            1.5579999999317806
+          ],
+          "median_ms": 1.5887000008660834
+        },
+        "python_scandir": {
+          "samples_ms": [
+            0.3529999994498212,
+            0.6197999973664992,
+            0.33740000071702525,
+            0.3797999997914303,
+            0.6739999989804346
+          ],
+          "median_ms": 0.3797999997914303
+        },
+        "rust_process_and_pipe": {
+          "samples_ms": [
+            31.77249999862397,
+            19.947400000091875,
+            20.412099998793565,
+            21.61329999944428,
+            19.69499999904656
+          ],
+          "median_ms": 20.412099998793565
+        }
+      }
+    },
+    "wide-large": {
+      "files": 30000,
+      "candidate": {
+        "samples": [
+          {
+            "dispatch_ms": 2.492899999197107,
+            "server_ms": 95.42209999926854,
+            "response_encode_and_transfer_ms": 0.5467000009957701,
+            "decode_ms": 0.30609999885200523,
+            "wpf_dispatch_layout_render_ms": 34.91489999942132,
+            "click_to_first_rows_ms": 133.68269999773474,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 2.2926000019651838,
+            "server_ms": 90.5453999985184,
+            "response_encode_and_transfer_ms": 0.47249999988707714,
+            "decode_ms": 0.13129999933880754,
+            "wpf_dispatch_layout_render_ms": 18.4146999999939,
+            "click_to_first_rows_ms": 111.85649999970337,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 2.014400000916794,
+            "server_ms": 88.48629999920377,
+            "response_encode_and_transfer_ms": 0.4129999979340937,
+            "decode_ms": 0.08570000136387534,
+            "wpf_dispatch_layout_render_ms": 13.405699999566423,
+            "click_to_first_rows_ms": 104.40509999898495,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.6880000002856832,
+            "server_ms": 94.29539999837289,
+            "response_encode_and_transfer_ms": 0.4257000000507105,
+            "decode_ms": 0.08199999865610152,
+            "wpf_dispatch_layout_render_ms": 16.640300000290154,
+            "click_to_first_rows_ms": 113.13139999765554,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.6355999978259206,
+            "server_ms": 85.79650000319816,
+            "response_encode_and_transfer_ms": 0.41309999869554304,
+            "decode_ms": 0.10299999848939478,
+            "wpf_dispatch_layout_render_ms": 11.130999999295454,
+            "click_to_first_rows_ms": 99.07919999750447,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 4.273300000932068,
+            "server_ms": 96.1007999976573,
+            "response_encode_and_transfer_ms": 0.4541000016615726,
+            "decode_ms": 0.09560000034980476,
+            "wpf_dispatch_layout_render_ms": 37.05429999899934,
+            "click_to_first_rows_ms": 137.9780999996001,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.697699997748714,
+            "server_ms": 94.23070000048028,
+            "response_encode_and_transfer_ms": 0.5588000021816697,
+            "decode_ms": 0.13079999916953966,
+            "wpf_dispatch_layout_render_ms": 17.862000000604894,
+            "click_to_first_rows_ms": 114.4800000001851,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.8529000008129515,
+            "server_ms": 140.73949999874458,
+            "response_encode_and_transfer_ms": 0.6601999994018115,
+            "decode_ms": 0.17010000010486692,
+            "wpf_dispatch_layout_render_ms": 26.526200002990663,
+            "click_to_first_rows_ms": 169.94890000205487,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 2.027099999395432,
+            "server_ms": 103.785200000857,
+            "response_encode_and_transfer_ms": 0.5224000015005004,
+            "decode_ms": 0.08270000034826808,
+            "wpf_dispatch_layout_render_ms": 15.284799999790266,
+            "click_to_first_rows_ms": 121.70220000189147,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.9092999973508995,
+            "server_ms": 92.90189999956056,
+            "response_encode_and_transfer_ms": 0.4153000008955132,
+            "decode_ms": 0.0853000019560568,
+            "wpf_dispatch_layout_render_ms": 18.03719999952591,
+            "click_to_first_rows_ms": 113.34899999928894,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 2.612200001749443,
+            "server_ms": 96.97049999886076,
+            "response_encode_and_transfer_ms": 0.5178999999770895,
+            "decode_ms": 0.0900999984878581,
+            "wpf_dispatch_layout_render_ms": 35.760800001298776,
+            "click_to_first_rows_ms": 135.95150000037393,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 2.171299998735776,
+            "server_ms": 103.85970000061207,
+            "response_encode_and_transfer_ms": 0.5132000005687587,
+            "decode_ms": 0.0897999998414889,
+            "wpf_dispatch_layout_render_ms": 19.067100001848303,
+            "click_to_first_rows_ms": 125.70110000160639,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 11.53619999968214,
+            "server_ms": 104.66950000045472,
+            "response_encode_and_transfer_ms": 0.9207000002788845,
+            "decode_ms": 0.15489999714191072,
+            "wpf_dispatch_layout_render_ms": 23.50550000119256,
+            "click_to_first_rows_ms": 140.7867999987502,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.944999999977881,
+            "server_ms": 103.16089999832911,
+            "response_encode_and_transfer_ms": 0.4732000015792437,
+            "decode_ms": 0.08399999933317304,
+            "wpf_dispatch_layout_render_ms": 11.440499998570886,
+            "click_to_first_rows_ms": 117.1035999977903,
+            "response_bytes": 15625
+          },
+          {
+            "dispatch_ms": 1.537699998152675,
+            "server_ms": 88.53740000267862,
+            "response_encode_and_transfer_ms": 0.46909999946365133,
+            "decode_ms": 0.08489999891025946,
+            "wpf_dispatch_layout_render_ms": 15.83079999909387,
+            "click_to_first_rows_ms": 106.45989999829908,
+            "response_bytes": 15625
+          }
+        ],
+        "profiles": [
+          {
+            "metadata_ms": 29.780400000000004,
+            "sort_ms": 24.1274,
+            "authorization_calls_ms": 0.207
+          },
+          {
+            "metadata_ms": 18.1167,
+            "sort_ms": 16.9476,
+            "authorization_calls_ms": 0.1431
+          },
+          {
+            "metadata_ms": 17.8252,
+            "sort_ms": 21.4861,
+            "authorization_calls_ms": 0.1421
+          }
+        ],
+        "median": {
+          "dispatch_ms": 2.014400000916794,
+          "server_ms": 95.42209999926854,
+          "response_encode_and_transfer_ms": 0.4732000015792437,
+          "decode_ms": 0.0900999984878581,
+          "wpf_dispatch_layout_render_ms": 18.03719999952591,
+          "click_to_first_rows_ms": 117.1035999977903,
+          "response_bytes": 15625
+        }
+      },
+      "reference": {
+        "samples": [
+          {
+            "dispatch_ms": 2.7560000016819686,
+            "server_ms": 762.6679999993939,
+            "response_encode_and_transfer_ms": 38.62949999893317,
+            "decode_ms": 19.231199999921955,
+            "wpf_dispatch_layout_render_ms": 32.53899999981513,
+            "click_to_first_rows_ms": 855.8236999997462,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.4074999999138527,
+            "server_ms": 758.2361999993736,
+            "response_encode_and_transfer_ms": 37.0178000011947,
+            "decode_ms": 19.957999997131992,
+            "wpf_dispatch_layout_render_ms": 11.840300001495052,
+            "click_to_first_rows_ms": 828.4597999991092,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 3.4512999991420656,
+            "server_ms": 713.742200001434,
+            "response_encode_and_transfer_ms": 49.876299999596085,
+            "decode_ms": 19.369199999346165,
+            "wpf_dispatch_layout_render_ms": 13.906600001064362,
+            "click_to_first_rows_ms": 800.3456000005826,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.4289999999164138,
+            "server_ms": 733.3449000034307,
+            "response_encode_and_transfer_ms": 49.49759999726666,
+            "decode_ms": 19.944600000599166,
+            "wpf_dispatch_layout_render_ms": 16.10369999980321,
+            "click_to_first_rows_ms": 820.3198000010161,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 4.520000002230518,
+            "server_ms": 737.0625999974436,
+            "response_encode_and_transfer_ms": 39.315000001806766,
+            "decode_ms": 20.680900001025293,
+            "wpf_dispatch_layout_render_ms": 13.222199999290751,
+            "click_to_first_rows_ms": 814.8007000017969,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 2.4540999984310474,
+            "server_ms": 742.956599999161,
+            "response_encode_and_transfer_ms": 41.06580000006943,
+            "decode_ms": 20.692699999926845,
+            "wpf_dispatch_layout_render_ms": 31.984299999749055,
+            "click_to_first_rows_ms": 839.1534999973373,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.4570999992429279,
+            "server_ms": 762.8130999983114,
+            "response_encode_and_transfer_ms": 65.14840000090771,
+            "decode_ms": 20.12960000138264,
+            "wpf_dispatch_layout_render_ms": 11.916399998881388,
+            "click_to_first_rows_ms": 861.464599998726,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.3445000004139729,
+            "server_ms": 724.9513999995543,
+            "response_encode_and_transfer_ms": 38.37369999746443,
+            "decode_ms": 19.933400002628332,
+            "wpf_dispatch_layout_render_ms": 15.322399998694891,
+            "click_to_first_rows_ms": 799.9253999987559,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.4183000021148473,
+            "server_ms": 775.6884999980684,
+            "response_encode_and_transfer_ms": 49.86700000154087,
+            "decode_ms": 20.088199999008793,
+            "wpf_dispatch_layout_render_ms": 10.835099998075748,
+            "click_to_first_rows_ms": 857.8970999988087,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 3.669500001706183,
+            "server_ms": 731.084799997916,
+            "response_encode_and_transfer_ms": 35.881700001482386,
+            "decode_ms": 20.66259999992326,
+            "wpf_dispatch_layout_render_ms": 12.702600000920938,
+            "click_to_first_rows_ms": 804.0012000019487,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 3.7216000018815976,
+            "server_ms": 850.9313999966253,
+            "response_encode_and_transfer_ms": 54.60310000125901,
+            "decode_ms": 20.256600000720937,
+            "wpf_dispatch_layout_render_ms": 34.10200000143959,
+            "click_to_first_rows_ms": 963.6147000019264,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.557600000523962,
+            "server_ms": 832.6367999979993,
+            "response_encode_and_transfer_ms": 50.72500000096625,
+            "decode_ms": 22.211600000446197,
+            "wpf_dispatch_layout_render_ms": 12.704099997790763,
+            "click_to_first_rows_ms": 919.8350999977265,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.6615999993518926,
+            "server_ms": 800.0539999993634,
+            "response_encode_and_transfer_ms": 49.6067000021867,
+            "decode_ms": 20.06279999841354,
+            "wpf_dispatch_layout_render_ms": 25.01480000137235,
+            "click_to_first_rows_ms": 896.3999000006879,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.7133000001194887,
+            "server_ms": 800.117599999794,
+            "response_encode_and_transfer_ms": 52.67739999908372,
+            "decode_ms": 20.801200000278186,
+            "wpf_dispatch_layout_render_ms": 11.438599998655263,
+            "click_to_first_rows_ms": 886.7480999979307,
+            "response_bytes": 4620142
+          },
+          {
+            "dispatch_ms": 1.6909000005398411,
+            "server_ms": 820.517899999686,
+            "response_encode_and_transfer_ms": 51.78620000151568,
+            "decode_ms": 20.42749999964144,
+            "wpf_dispatch_layout_render_ms": 16.21530000193161,
+            "click_to_first_rows_ms": 910.6378000033146,
+            "response_bytes": 4620142
+          }
+        ],
+        "profiles": [
+          {
+            "metadata_ms": 754.3601000000001,
+            "sort_ms": 16.3267,
+            "authorization_calls_ms": 40.031600000000005
+          },
+          {
+            "metadata_ms": 695.1957,
+            "sort_ms": 18.066200000000002,
+            "authorization_calls_ms": 46.2247
+          },
+          {
+            "metadata_ms": 672.4929000000001,
+            "sort_ms": 16.882,
+            "authorization_calls_ms": 34.0671
+          }
+        ],
+        "median": {
+          "dispatch_ms": 1.6909000005398411,
+          "server_ms": 762.6679999993939,
+          "response_encode_and_transfer_ms": 49.6067000021867,
+          "decode_ms": 20.12960000138264,
+          "wpf_dispatch_layout_render_ms": 13.906600001064362,
+          "click_to_first_rows_ms": 855.8236999997462,
+          "response_bytes": 4620142
+        }
+      },
+      "metadata_probe": {
+        "python_lstat": {
+          "samples_ms": [
+            712.5553000005311,
+            787.6247999993211,
+            718.0702000005112,
+            712.9663999985496,
+            748.8307999992685
+          ],
+          "median_ms": 718.0702000005112
+        },
+        "python_scandir": {
+          "samples_ms": [
+            58.7392000015825,
+            61.712799997621914,
+            60.727800002496224,
+            58.89060000117752,
+            57.38000000201282
+          ],
+          "median_ms": 58.89060000117752
+        },
+        "rust_process_and_pipe": {
+          "samples_ms": [
+            43.71430000173859,
+            44.51150000022608,
+            42.52239999914309,
+            40.2044999973441,
+            40.348499998799525
+          ],
+          "median_ms": 42.52239999914309
+        }
+      }
+    }
+  }
+}

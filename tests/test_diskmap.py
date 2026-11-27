@@ -323,6 +323,31 @@ class DiskMapActionsTestCase(unittest.TestCase):
             diskmap.remove_file(str(path), "delete", True)
         self.assertEqual(path.read_bytes(), b"changed")
 
+    def test_paged_listing_only_authorizes_shown_unchanged_files(self) -> None:
+        first = self.write("first.bin", b"12345")
+        next_file = self.write("next.bin", b"123")
+        self.write("last.bin", b"1")
+        with patch.object(diskmap, "FILE_PAGE_SIZE", 1):
+            page = diskmap.files(str(self.root), paged=True)
+            token = page["listing"]
+            self.assertEqual([row["path"] for row in page["files"]], [str(first)])
+            self.assertEqual((page["count"], page["next_offset"]), (3, 1))
+            for path, listing in [(first, None), (next_file, token)]:
+                with self.assertRaises(diskmap.RemoveError):
+                    diskmap.remove_file(str(path), "delete", True, listing=listing)
+            first.write_bytes(b"updated")
+            with self.assertRaises(diskmap.RemoveError):
+                diskmap.remove_file(str(first), "trash", listing=token)
+            self.assertEqual(diskmap.file_page(token, 0)["files"], [])
+            page = diskmap.file_page(token, page["next_offset"])
+            self.assertEqual([row["path"] for row in page["files"]], [str(next_file)])
+            moved = diskmap.remove_file(str(next_file), "trash", listing=token)
+            self.assertEqual(moved["removed_count"], 1)
+            self.assertEqual(diskmap.undo(moved["run_id"])["restored_count"], 1)
+            self.assertEqual(next_file.read_bytes(), b"123")
+            with self.assertRaises(diskmap.ScanError):
+                diskmap.file_page(token, 2)
+
     def test_parent_replacement_is_rejected_even_when_file_identity_is_unchanged(self) -> None:
         path = self.write("nested/a.bin")
         diskmap.files(str(path.parent))
@@ -502,6 +527,23 @@ class DiskMapActionsTestCase(unittest.TestCase):
                 request("undo", {"run_id": "../invalid"})
             self.assertEqual(caught.exception.code, 400)
             caught.exception.close()
+
+            old = request("files", {"folder": str(self.root), "paged": True})
+            other = self.base / "other"
+            other.mkdir()
+            request("scan", {"folder": str(other)})
+            for route, body in (
+                ("files/page", {"listing": old["listing"], "offset": 0}),
+                ("remove", {"path": str(path), "mode": "delete", "confirmed": True,
+                            "listing": old["listing"]}),
+            ):
+                with self.assertRaises(urllib.error.HTTPError) as stale:
+                    request(route, body)
+                self.assertEqual(stale.exception.code, 400)
+                stale.exception.close()
+            current = request("files", {"folder": str(self.root), "paged": True})
+            self.assertNotEqual(old["listing"], current["listing"])
+            self.assertEqual(path.read_bytes(), b"123")
 
             entered, release, closed = (threading.Event() for _ in range(3))
             real_scandir = os.scandir
