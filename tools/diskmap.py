@@ -26,6 +26,8 @@ CACHE_TTL = 90.0
 MAX_CACHE = 64
 MAX_ERRORS = 25
 FILE_ATTRIBUTE_REPARSE_POINT = fileguard.FILE_ATTRIBUTE_REPARSE_POINT
+PROTECTED_NAMES = ("$recycle.bin", "system volume information")
+PROTECTED_TOP_NAMES = ("windows", "program files", "program files (x86)", "programdata")
 
 
 class ScanError(RuntimeError):
@@ -256,15 +258,14 @@ def _volume_root(path):
 
 def _protected(entry, directories, *, top=False):
     name = entry.name.casefold()
-    if name in ("$recycle.bin", "system volume information"):
+    if name in PROTECTED_NAMES:
         return True
-    if top and name in ("windows", "program files", "program files (x86)", "programdata"):
+    if top and name in PROTECTED_TOP_NAMES:
         return True
     return os.path.normcase(entry.path) in directories
 
 
-def scan(folder: str, *, use_cache=False, allow_volume_root=False, control=None) -> dict:
-    global _cache_generation
+def _prepare_scan(folder, allow_volume_root, control):
     if not folder or not folder.strip():
         raise ScanError("Укажи папку, которую нужно посчитать")
     if control is not None:
@@ -285,6 +286,48 @@ def scan(folder: str, *, use_cache=False, allow_volume_root=False, control=None)
         raise ScanError(str(exc)) from exc
     except OSError as exc:
         raise ScanError(f"Не получилось прочитать папку: {exc}") from exc
+    protected = None
+    if volume:
+        protected = {os.path.normcase(str(root / path.relative_to(resolved)))
+                     for path in fileguard.get_system_directories() if path.is_relative_to(resolved)}
+    return root, protected
+
+
+def _scan_payload(root, protected, started, entries, loose_size, loose_files, counters, control):
+    if loose_files:
+        entries.append({
+            "name": "Файлы в этой папке", "path": str(root), "kind": "files",
+            "size": loose_size, "count": loose_files,
+        })
+    if control is not None:
+        control.check()
+    entries.sort(key=lambda item: (-item["size"], item["name"].lower()))
+    payload = {
+        "folder": str(root),
+        "name": root.name or str(root),
+        "parent": str(root.parent) if root.parent != root else None,
+        "total": sum(item["size"] for item in entries),
+        "entries": entries,
+        "dirs": counters["dirs"],
+        "files": counters["files"],
+        "links": counters["links"],
+        "errors": counters["errors"],
+        "error_count": counters.get("error_count", 0),
+        "truncated": counters["truncated"],
+        "seconds": round(time.monotonic() - started, 2),
+    }
+    if protected is not None:
+        payload["read_only_root"] = True
+    if control is not None:
+        control.check()
+        control.report(counters["entries"], counters["files"], counters["bytes"])
+    return payload
+
+
+def scan(folder: str, *, use_cache=False, allow_volume_root=False, control=None) -> dict:
+    global _cache_generation
+    root, protected = _prepare_scan(folder, allow_volume_root, control)
+    volume = protected is not None
 
     key = os.path.normcase(str(root))
     started = time.monotonic()
@@ -297,10 +340,6 @@ def scan(folder: str, *, use_cache=False, allow_volume_root=False, control=None)
         generation = _cache_generation
         _cache.pop(key, None)
 
-    protected = None
-    if volume:
-        protected = {os.path.normcase(str(root / path.relative_to(resolved)))
-                     for path in fileguard.get_system_directories() if path.is_relative_to(resolved)}
     counters = {"entries": 0, "dirs": 0, "files": 0, "bytes": 0, "links": 0,
                 "entry_limit": False, "truncated": False, "errors": []}
     entries = []
@@ -322,41 +361,7 @@ def scan(folder: str, *, use_cache=False, allow_volume_root=False, control=None)
                 counters["files"] += 1
                 counters["bytes"] += info.st_size
 
-    if loose_files:
-        entries.append(
-            {
-                "name": "Файлы в этой папке",
-                "path": str(root),
-                "kind": "files",
-                "size": loose_size,
-                "count": loose_files,
-            }
-        )
-
-    if control is not None:
-        control.check()
-    entries.sort(key=lambda item: (-item["size"], item["name"].lower()))
-    total = sum(item["size"] for item in entries)
-
-    payload = {
-        "folder": str(root),
-        "name": root.name or str(root),
-        "parent": str(root.parent) if root.parent != root else None,
-        "total": total,
-        "entries": entries,
-        "dirs": counters["dirs"],
-        "files": counters["files"],
-        "links": counters["links"],
-        "errors": counters["errors"],
-        "error_count": counters.get("error_count", 0),
-        "truncated": counters["truncated"],
-        "seconds": round(time.monotonic() - started, 2),
-    }
-    if volume:
-        payload["read_only_root"] = True
-    if control is not None:
-        control.check()
-        control.report(counters["entries"], counters["files"], counters["bytes"])
+    payload = _scan_payload(root, protected, started, entries, loose_size, loose_files, counters, control)
     if use_cache and not volume and control is None and not payload["errors"] and not payload["truncated"]:
         with _cache_lock:
             current = _cache.get(key)
