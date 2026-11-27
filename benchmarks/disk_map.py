@@ -25,7 +25,7 @@ class MemoryCounters(ctypes.Structure):
     ]
 
 
-def memory():
+def memory(handle=None):
     get_info = ctypes.windll.psapi.GetProcessMemoryInfo
     get_info.argtypes = (wintypes.HANDLE, ctypes.POINTER(MemoryCounters), wintypes.DWORD)
     get_info.restype = wintypes.BOOL
@@ -33,7 +33,7 @@ def memory():
     current.restype = wintypes.HANDLE
     counters = MemoryCounters()
     counters.size = ctypes.sizeof(counters)
-    if not get_info(current(), ctypes.byref(counters), counters.size):
+    if not get_info(current() if handle is None else handle, ctypes.byref(counters), counters.size):
         raise ctypes.WinError()
     return counters
 
