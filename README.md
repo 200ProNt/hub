@@ -303,6 +303,10 @@ node --test tests/test_diskmap_ui.cjs tests/test_bigfiles_ui.cjs tests/test_clea
 - `LICENSE` — лицензия MIT.
 - `.gitignore` — исключает `data/` и локальные скриншоты из публикации.
 
+## Участники проекта
+
+Автор Hub — devrin. OpenAI Codex помогал с разработкой, замерами производительности и проверкой сборок.
+
 ## Лицензия
 
 Код открыт под лицензией MIT, автор — devrin. Можно брать, менять и использовать

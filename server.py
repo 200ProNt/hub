@@ -52,54 +52,30 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.6.1"
+VERSION = "1.6.0"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
     {
         "version": VERSION,
-        "tag": "1.6.1-beta.1",
         "date": "2026-11-27",
-        "title": "Быстрое открытие списка файлов",
-        "title_en": "Faster opening of the file list",
+        "title": "Быстрая карта диска и каналы обновлений",
+        "title_en": "Faster Disk Map and update channels",
         "items": [
             "Карта диска быстрее показывает первые 100 файлов в большой папке.",
             "«Показать ещё файлы» подгружает следующую сотню. При переходе между папками старый список закрывается.",
-        ],
-        "items_en": [
-            "Disk Map displays the first 100 files in a large folder faster.",
-            "Show more files loads the next 100. Navigating to another folder closes the previous list.",
-        ],
-    },
-    {
-        "version": "1.6.0.1",
-        "tag": "1.6.0.1-beta.1",
-        "date": "2026-11-27",
-        "title": "Исправление запуска и каналы обновлений",
-        "title_en": "Startup fix and update channels",
-        "items": [
+            "Расчёт размеров показывает прогресс, поддерживает отмену и может посчитать локальный диск.",
+            "Rust Core включается в настройках экспериментов. По умолчанию выбран Python, и Hub возвращается к нему при сбое Rust Worker.",
             "Hub загружает Python и его библиотеки из каталога приложения, без распаковки в TEMP при запуске.",
             "В настройках обновлений можно выбрать последнюю стабильную версию или бету.",
         ],
         "items_en": [
+            "Disk Map displays the first 100 files in a large folder faster.",
+            "Show more files loads the next 100. Navigating to another folder closes the previous list.",
+            "Disk Map shows progress, supports cancellation, and can scan an entire local drive.",
+            "Rust Core is available under Experiments. Python is the default and the fallback if the Rust worker fails.",
             "Hub loads Python and its libraries from the app folder without extracting them to TEMP at startup.",
             "Update settings now let you choose the latest stable release or beta.",
-        ],
-    },
-    {
-        "version": "1.6.0",
-        "date": "2026-11-27",
-        "title": "Фоновая карта диска и Rust Core",
-        "title_en": "Background Disk Map and Rust Core",
-        "items": [
-            "Карта диска показывает прогресс, поддерживает отмену и может посчитать локальный диск.",
-            "В «Настройки → Эксперименты» можно включить Rust Core для карты диска. По умолчанию выбран Python.",
-            "После сбоя Rust Worker карта диска показывает предупреждение и повторяет чтение в Python.",
-        ],
-        "items_en": [
-            "Disk Map shows progress, supports cancellation, and can scan an entire local drive.",
-            "Enable Rust Core for Disk Map under Settings → Experiments. Python is the default.",
-            "If the Rust worker fails, Disk Map shows a warning and retries with Python.",
         ],
     },
     {
