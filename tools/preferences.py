@@ -10,6 +10,7 @@ from pathlib import Path
 
 from tools import paths
 
+RUST_DISKMAP = "hub-experimental-rust-diskmap"
 OPTIONS = {
     "hub-language": {"en", "ru"},
     "hub-theme": {"auto", "light", "dark"},
@@ -21,6 +22,7 @@ OPTIONS = {
     "hub-accent": {"", "graphite", "ocean", "emerald", "lavender", "sand", "sunset", "pink"},
     "hub-onboarded": {"1"},
     "tray": {"on", "off"},
+    RUST_DISKMAP: {"on", "off"},
 }
 _lock = threading.RLock()
 

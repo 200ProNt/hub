@@ -37,6 +37,7 @@ from tools import (
     preferences,
     qrdrop,
     renamer,
+    rust_diskmap,
     search,
     shortcuts,
     trash,
@@ -51,10 +52,26 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.5.3.1"
+VERSION = "1.6.0"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": "1.6.0",
+        "date": "2026-11-27",
+        "title": "Фоновая карта диска и Rust Core",
+        "title_en": "Background Disk Map and Rust Core",
+        "items": [
+            "Карта диска показывает прогресс, поддерживает отмену и может посчитать локальный диск.",
+            "В «Настройки → Эксперименты» можно включить Rust Core для карты диска. По умолчанию выбран Python.",
+            "После сбоя Rust Worker карта диска показывает предупреждение и повторяет чтение в Python.",
+        ],
+        "items_en": [
+            "Disk Map shows progress, supports cancellation, and can scan an entire local drive.",
+            "Enable Rust Core for Disk Map under Settings → Experiments. Python is the default.",
+            "If the Rust worker fails, Disk Map shows a warning and retries with Python.",
+        ],
+    },
     {
         "version": "1.5.3.1",
         "date": "2026-11-26",
@@ -603,6 +620,24 @@ def open_in_explorer(path: str) -> None:
 # --- HTTP ------------------------------------------------------------------
 
 
+def _scan_diskmap(folder, selected_rust, job):
+    if selected_rust:
+        try:
+            result = rust_diskmap.scan(folder, allow_volume_root=True, control=job)
+        except rust_diskmap.WorkerError as exc:
+            job.check()
+            job.warning = str(exc)
+            job.report(0, 0, 0)
+        else:
+            result["scan_backend"] = "rust"
+            return result
+    result = diskmap.scan(folder, allow_volume_root=True, control=job)
+    result["scan_backend"] = "python"
+    if job.warning:
+        result["fallback_reason"] = job.warning
+    return result
+
+
 class HubServer(ThreadingHTTPServer):
     def __init__(self, *args, **kwargs):
         self.jobs = jobs.Jobs()
@@ -816,6 +851,8 @@ class HubHandler(BaseHTTPRequestHandler):
                         "default_folder": default_folder(),
                         "platform": sys.platform,
                         "diskmap_jobs": self.client_address[0] == "127.0.0.1" and hasattr(self.server, "jobs"),
+                        "diskmap_rust": self.client_address[0] == "127.0.0.1" and
+                        preferences.read().get(preferences.RUST_DISKMAP) == "on",
                     }
                 )
             if path == "/api/about":
@@ -1135,6 +1172,15 @@ class HubHandler(BaseHTTPRequestHandler):
         if path == "/api/dupes/undo":
             return duplicates.undo(str(body.get("run_id", "")))
 
+        if path == "/api/diskmap/backend":
+            if self.client_address[0] != "127.0.0.1":
+                raise ApiError("Настройки карты диска доступны только на этом ПК", 403)
+            enabled = body.get("enabled")
+            if not isinstance(enabled, bool):
+                raise ApiError("Укажи, включён ли Rust Core", 400)
+            settings = preferences.update({preferences.RUST_DISKMAP: "on" if enabled else "off"})
+            return {"enabled": settings.get(preferences.RUST_DISKMAP) == "on"}
+
         if path in ("/api/diskmap/jobs/start", "/api/diskmap/jobs/status", "/api/diskmap/jobs/cancel"):
             if self.client_address[0] != "127.0.0.1" or not hasattr(self.server, "jobs"):
                 raise ApiError("Задания карты диска доступны только на этом ПК", 403)
@@ -1142,9 +1188,9 @@ class HubHandler(BaseHTTPRequestHandler):
                 folder = body.get("folder", "")
                 if not isinstance(folder, str) or not folder.strip():
                     raise ApiError("Укажи папку, которую нужно посчитать", 400)
+                selected_rust = preferences.read().get(preferences.RUST_DISKMAP) == "on"
                 try:
-                    identity = self.server.jobs.start(
-                        lambda job: diskmap.scan(folder, allow_volume_root=True, control=job))
+                    identity = self.server.jobs.start(lambda job: _scan_diskmap(folder, selected_rust, job))
                 except jobs.Busy as exc:
                     raise ApiError(str(exc), 409) from exc
                 return {"id": identity}

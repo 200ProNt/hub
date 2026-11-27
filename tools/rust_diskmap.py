@@ -107,7 +107,7 @@ def _events(path, request, control, metrics, sample_process):
 def _detail(error):
     code = error.get("os_error")
     if os.name == "nt" and isinstance(code, int):
-        return ctypes.WinError(code).strerror
+        return ctypes.WinError(code).strerror.rstrip(".")
     return error["detail"]
 
 

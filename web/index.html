@@ -247,6 +247,14 @@
           </div>
           <button class="btn ghost small" id="settingsBackupBtn" type="button">Создать ZIP-бэкап</button>
         </div>
+        <div class="settings-item hidden" id="settingsRustDiskMap">
+          <div class="settings-item-info">
+            <label class="settings-item-label" for="settingsRustToggle">Rust Core для карты диска (эксперимент)</label>
+            <span class="settings-item-hint" id="settingsRustHint">Вступает в силу при следующем расчёте. Отключи, чтобы вернуться к Python.</span>
+          </div>
+          <input type="checkbox" id="settingsRustToggle" aria-describedby="settingsRustHint">
+        </div>
+
         <div class="settings-item hidden" id="settingsTransfer">
           <div class="settings-item-info">
             <span class="settings-item-label">Настройки старой версии</span>

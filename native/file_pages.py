@@ -712,7 +712,7 @@ def _diskmap(page):
 
         def done(data):
             if data is None or cancel.is_set():
-                page.notice(tr("Scan cancellation requested.", "Отмена расчёта запрошена."))
+                page.notice(tr("Scan cancelled.", "Расчёт отменён."))
                 return
             state.update(data=data, files=[], files_open=False, limit=100)
             folder.Text = data["folder"]
@@ -736,7 +736,11 @@ def _diskmap(page):
                 folders_box.Items.Add(tr("This folder is empty.", "В этой папке ничего нет."))
             page.hub.animate(folders_box, "sheet")
             render_files()
-            notice = "\n".join(filter(None, (status, _warnings(data))))
+            fallback = data.get("fallback_reason", "")
+            if fallback:
+                fallback = tr("Rust Worker failed. Completed with Python.",
+                              "Сбой Rust Worker. Расчёт завершён в Python.") + "\n" + fallback
+            notice = "\n".join(filter(None, (status, fallback, _warnings(data))))
             if notice:
                 page.notice(notice)
             if include_files and not data.get("read_only_root"):
@@ -744,8 +748,12 @@ def _diskmap(page):
 
         def progress(update):
             entries, files, size = update["entries"], update["files"], _size(update["bytes"])
-            page.notice(tr(f"Scanning · {entries} entries · {files} files · {size}",
-                           f"Обход · записей: {entries} · файлов: {files} · {size}"))
+            text = tr(f"Scanning · {entries} entries · {files} files · {size}",
+                      f"Обход · записей: {entries} · файлов: {files} · {size}")
+            if update.get("warning"):
+                text = tr("Rust Worker failed. Continuing with Python.",
+                          "Сбой Rust Worker. Продолжаю в Python.") + "\n" + text
+            page.notice(text)
 
         def finished():
             state["cancel"] = None

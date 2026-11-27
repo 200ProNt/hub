@@ -22,6 +22,7 @@ class Job:
     progress: tuple = (0, 0, 0)
     result: dict | None = None
     error: str | None = None
+    warning: str | None = None
     finished: bool = False
 
     def check(self):
@@ -41,6 +42,8 @@ class Job:
             state = "cancelling"
         entries, files, size = self.progress
         value = {"state": state, "entries": entries, "files": files, "bytes": size}
+        if self.warning:
+            value["warning"] = self.warning
         if state == "done":
             value["result"] = self.result
         elif state == "failed":

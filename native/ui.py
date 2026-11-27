@@ -687,6 +687,18 @@ class HubWindow:
             control.Checked += changed
             control.Unchecked += changed
 
+        page.section(tr("Experiments", "Эксперименты"))
+        rust = page.check(tr("Rust Core for Disk Map (experimental)", "Rust Core для карты диска (эксперимент)"),
+                          self.settings.get(preferences.RUST_DISKMAP) == "on")
+        page.text(tr("Applies on the next scan. Turn it off to use Python.",
+                     "Вступает в силу при следующем расчёте. Отключи, чтобы вернуться к Python."), muted=True)
+
+        def change_rust(sender, _):
+            self.change_settings(**{preferences.RUST_DISKMAP: "on" if sender.IsChecked else "off"})
+
+        rust.Checked += change_rust
+        rust.Unchecked += change_rust
+
         page.section("Windows")
         current = tray.status()
         tray_check = page.check(tr("Show tray icon", "Значок в трее"), self.settings.get("tray", "on") == "on")

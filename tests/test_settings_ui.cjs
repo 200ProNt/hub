@@ -95,3 +95,22 @@ test('settings modal toggles on Ctrl+, keydown', async () => {
   keydown({ ctrlKey: true, key: ',', preventDefault() {} });
   assert.equal(modal.classList.contains('hidden'), true);
 });
+
+test('experimental Disk Map switch persists the selected engine through Hub', async () => {
+  const { context, el, window } = boot();
+  const requests = [];
+  window.Hub.api = async (url, payload) => {
+    requests.push([url, payload.enabled]);
+    return payload;
+  };
+  context.configureDiskMapSetting({ diskmap_jobs: true, diskmap_rust: false });
+  const toggle = el('settingsRustToggle');
+  assert.equal(toggle.checked, false);
+  for (const value of [true, false]) {
+    toggle.checked = value;
+    await toggle.handlers.change();
+    assert.equal(toggle.checked, value);
+    assert.equal(toggle.disabled, false);
+  }
+  assert.deepEqual(requests, [['/api/diskmap/backend', true], ['/api/diskmap/backend', false]]);
+});

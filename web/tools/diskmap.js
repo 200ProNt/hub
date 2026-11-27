@@ -490,9 +490,8 @@
           $("#diskCancel").disabled = true;
           $("#diskProgress").textContent = "Отменяю обход…";
         }
-        if (state.scan.id && !state.scan.cancelSent) {
-          state.scan.cancelSent = true;
-          Hub.api("/api/diskmap/jobs/cancel", { id: state.scan.id }).catch(() => {});
+        if (state.scan.id && !state.scan.cancelRequest) {
+          state.scan.cancelRequest = Hub.api("/api/diskmap/jobs/cancel", { id: state.scan.id }).catch(() => null);
         }
       }
 
@@ -506,22 +505,31 @@
         cancel.classList.remove("hidden");
         cancel.disabled = false;
         let complete = false;
+        let cancelling = false;
         try {
           const { id } = await Hub.api("/api/diskmap/jobs/start", { folder: target });
           current.id = id;
-          while (!current.cancelled && !state.closed) {
+          while (!state.closed) {
+            if (current.cancelled && !cancelling) {
+              cancelScan();
+              const response = await current.cancelRequest;
+              if (!response || state.closed) return null;
+              if (response.state === "cancelled") return { cancelled: true };
+              cancelling = true;
+            }
             const report = await Hub.api("/api/diskmap/jobs/status", { id });
             if (report.state === "done") {
               complete = true;
-              return current.cancelled ? null : report.result;
+              return current.cancelled ? { cancelled: true } : report.result;
             }
             if (report.state === "failed" || report.state === "cancelled") {
               complete = true;
               if (!current.cancelled && report.error) throw new Error(report.error);
-              return null;
+              return { cancelled: true };
             }
             if (!current.cancelled && !state.closed) {
-              progress.textContent = `Обход · записей: ${report.entries} · файлов: ${report.files} · ${Hub.fmtSize(report.bytes)}`;
+              const prefix = report.warning ? "Сбой Rust Worker. Продолжаю в Python." : "Обход";
+              progress.textContent = `${prefix} · записей: ${report.entries} · файлов: ${report.files} · ${Hub.fmtSize(report.bytes)}`;
             }
             await new Promise(resolve => setTimeout(resolve, 250));
           }
@@ -552,9 +560,14 @@
           const data = await runScan(target);
           if (state.closed) return;
           if (!data) {
-            Hub.toast("Отмена расчёта запрошена.");
+            Hub.toast("Отмена запрошена. Подтверждение от Hub не получено.");
             return;
           }
+          if (data.cancelled) {
+            Hub.toast("Расчёт отменён.");
+            return;
+          }
+          if (data.fallback_reason) Hub.toast(`Сбой Rust Worker. Расчёт завершён в Python. ${data.fallback_reason}`);
 
           data.entries = data.entries.map((entry, index) => ({
             ...entry,

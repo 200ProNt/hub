@@ -15,12 +15,12 @@ function setup(choices = ['trash'], confirmed = true, jobApi = null) {
     });
     return nodes.get(key);
   };
-  const calls = [];
+  const calls = [], toasts = [];
   const file = {name:'unused.txt',path:'C:\\demo\\unused.txt',size:24};
   const Hub = {
     defaultFolder:'C:\\demo',escapeHtml:String,plural:()=> 'файлов',fmtSize:String,
     diskmapJobs: Boolean(jobApi),
-    toast(){},setBusy(){},dismissDialog(){},
+    toast(message){toasts.push(message);},setBusy(){},dismissDialog(){},
     async choose(){return choices.shift() ?? null;}, async confirm(){return confirmed;},
     async api(url,body){
       calls.push({url,body});
@@ -36,7 +36,7 @@ function setup(choices = ['trash'], confirmed = true, jobApi = null) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../web/tools/diskmap.js'),'utf8'),context);
   const root = {innerHTML:'', querySelector:node};
   const cleanup = context.window.HubTools.diskmap.mount(root);
-  return {node,calls,cleanup};
+  return {node,calls,cleanup,toasts};
 }
 async function openFiles(s) {
   await s.node('#diskScan').listeners.click();
@@ -112,4 +112,20 @@ test('leaving the disk map cancels a job whose start response is pending', async
   const calls = s.calls.filter(x => x.url.includes('/jobs/'));
   assert.deepEqual(calls.map(x => x.url.split('/').pop()), ['start', 'cancel']);
   assert.equal(calls.at(-1).body.id, 'late-job');
+});
+test('browser reports a completed cancellation only after the terminal state', async () => {
+  let stopped = false;
+  const s = setup([], true, async (url) => {
+    if (url.endsWith('/start')) return { id: 'scan' };
+    if (url.endsWith('/cancel')) return { state: 'cancelling' };
+    if (stopped) return { state: 'cancelled' };
+    return { state: 'running', entries: 0, files: 0, bytes: 0 };
+  });
+  const scan = s.node('#diskScan').listeners.click();
+  await new Promise(resolve => setImmediate(resolve));
+  s.node('#diskCancel').listeners.click();
+  assert.ok(!s.toasts.some(message => message.includes('отменён')));
+  stopped = true;
+  await scan;
+  assert.ok(s.toasts.some(message => message.includes('отменён')));
 });

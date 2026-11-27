@@ -454,6 +454,26 @@ function initSound() {
 /* ---------- Окно настроек Hub (Settings) ---------- */
 let previousSettingsFocus = null;
 
+function configureDiskMapSetting(info) {
+  const toggle = document.getElementById("settingsRustToggle");
+  if (!toggle || info.diskmap_jobs !== true) return;
+  document.getElementById("settingsRustDiskMap")?.classList.remove("hidden");
+  let enabled = info.diskmap_rust === true;
+  toggle.checked = enabled;
+  toggle.addEventListener("change", async () => {
+    toggle.disabled = true;
+    try {
+      const result = await Hub.api("/api/diskmap/backend", { enabled: toggle.checked });
+      enabled = result.enabled === true;
+    } catch (error) {
+      Hub.toast(error.message);
+    } finally {
+      toggle.checked = enabled;
+      toggle.disabled = false;
+    }
+  });
+}
+
 Hub.openSettings = function () {
   const modal = document.getElementById("settingsModal");
   if (!modal || !modal.classList.contains("hidden")) return;
@@ -900,6 +920,7 @@ async function init() {
     Hub.tools = Array.isArray(info.tools) && info.tools.length ? info.tools : fallbackTools;
     Hub.defaultFolder = info.default_folder || "";
     Hub.diskmapJobs = info.diskmap_jobs === true;
+    configureDiskMapSetting(info);
     Hub.version = info.version || "";
   } catch (error) {
     Hub.tools = fallbackTools;

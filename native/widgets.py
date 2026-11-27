@@ -2,6 +2,7 @@
 
 import json
 import threading
+import time
 from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
 
@@ -278,9 +279,18 @@ class Page:
             identity = self.post(route + "/start", payload)["id"]
             arguments = {"id": identity}
             complete = False
+            cancel_sent = False
             try:
-                while not cancel.wait(.25):
-                    state = self.post(route + "/status", arguments)
+                while True:
+                    if not cancel_sent and cancel.wait(.25):
+                        cancel_sent = True
+                        state = self.post(route + "/cancel", arguments)
+                    else:
+                        if cancel_sent:
+                            time.sleep(.25)
+                        state = self.post(route + "/status", arguments)
+                    if cancel.is_set() and self.hub.current is not self:
+                        return None
                     if state["state"] == "running":
                         self.hub.dispatch(lambda update=state: progress(update) if not cancel.is_set() else None)
                         continue
@@ -293,7 +303,7 @@ class Page:
                         raise RuntimeError(state["error"])
                     break
             finally:
-                if not complete:
+                if not complete and not cancel_sent:
                     self.post(route + "/cancel", arguments)
             return None
 
