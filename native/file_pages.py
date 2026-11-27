@@ -49,8 +49,9 @@ def _warnings(result):
     for error in errors[:5]:
         path = error.get("path") or error.get("file")
         parts.append(f"{path} — {error['reason']}" if path else error["reason"])
-    if len(errors) > 5:
-        parts.append(tr(f"Total errors: {len(errors)}.", f"Всего ошибок: {len(errors)}."))
+    count = result.get("error_count", len(errors))
+    if count > 5:
+        parts.append(tr(f"Total skipped entries: {count}.", f"Всего пропущенных записей: {count}."))
     return "\n".join(parts)
 
 
@@ -578,12 +579,21 @@ def _disk_chart(canvas, entries, activate):
 
 
 def _diskmap(page):
+    from threading import Event
     from System.Windows import HorizontalAlignment, Visibility
     from System.Windows.Controls import Canvas
     from System.Windows.Input import Key
 
     folder = page.folder(tr("Folder or drive", "Папка или диск"), page.default_folder)
-    state = {"data": None, "files": [], "files_open": False, "limit": 100}
+    state = {"data": None, "files": [], "files_open": False, "limit": 100, "cancel": None}
+
+    def cancel_scan():
+        if state["cancel"] is not None:
+            state["cancel"].set()
+            cancel_button.IsEnabled = False
+            page.notice(tr("Cancelling scan…", "Отменяю обход…"))
+
+    page.on_leave(cancel_scan)
 
     def refresh(status=""):
         if state["data"]:
@@ -596,18 +606,21 @@ def _diskmap(page):
             scan(state["data"]["parent"])
 
     def root_drive():
-        drive = PureWindowsPath(str(folder.Text).strip()).anchor
-        if drive:
-            scan(drive)
+        drive = PureWindowsPath(str(folder.Text).strip()).drive
+        if len(drive) == 2 and drive[1] == ":":
+            scan(drive + "\\")
         else:
             page.notice(tr("Enter a drive or a full folder path.", "Укажи диск или полный путь к папке."))
 
-    page.actions(
+    buttons = page.actions(
         (tr("Calculate sizes", "Посчитать размеры"), lambda: scan(_target(page, folder)), True),
         (tr("Up one level", "На уровень выше"), parent),
         (tr("Scan entire drive", "Посчитать весь диск"), root_drive),
         (tr("Undo last move", "Вернуть последний перенос"), _undo(page, "diskmap", refresh)),
+        (tr("Cancel scan", "Отменить расчёт"), cancel_scan),
     )
+    cancel_button = buttons[-1]
+    cancel_button.IsEnabled = False
     summary = page.text("", muted=True)
     chart = Canvas()
     chart.Width = 152
@@ -671,6 +684,9 @@ def _diskmap(page):
         if not state["data"]:
             page.notice(tr("Calculate the folder sizes first.", "Сначала посчитай размеры папки."))
             return
+        if state["data"].get("read_only_root"):
+            page.notice(tr("Choose a subfolder to view its files.", "Для списка файлов выбери подпапку."))
+            return
         body = {"folder": state["data"]["folder"]}
 
         def done(listing):
@@ -691,17 +707,14 @@ def _diskmap(page):
         _open(page, chosen[0]["path"] if chosen else "")
 
     def scan(path, include_files=False, status=""):
-        if not path:
+        if not path or page.busy:
             return
 
-        def work():
-            data = page.post("/api/diskmap/scan", {"folder": path})
-            listing = page.post("/api/diskmap/files", {"folder": data["folder"]}) if include_files else {}
-            return data, listing
-
-        def done(result):
-            data, listing = result
-            state.update(data=data, files=listing.get("files", []), files_open=include_files, limit=100)
+        def done(data):
+            if data is None or cancel.is_set():
+                page.notice(tr("Scan cancellation requested.", "Отмена расчёта запрошена."))
+                return
+            state.update(data=data, files=[], files_open=False, limit=100)
             folder.Text = data["folder"]
             counts = tr(f"{data['dirs']} folders · {data['files']} files",
                         f"Папок: {data['dirs']} · Файлов: {data['files']}")
@@ -723,11 +736,24 @@ def _diskmap(page):
                 folders_box.Items.Add(tr("This folder is empty.", "В этой папке ничего нет."))
             page.hub.animate(folders_box, "sheet")
             render_files()
-            notice = "\n".join(filter(None, (status, _warnings(data), _warnings(listing))))
+            notice = "\n".join(filter(None, (status, _warnings(data))))
             if notice:
                 page.notice(notice)
+            if include_files and not data.get("read_only_root"):
+                open_files()
 
-        page.run(work, done, tr("Calculating sizes…", "Считаю размеры…"))
+        def progress(update):
+            entries, files, size = update["entries"], update["files"], _size(update["bytes"])
+            page.notice(tr(f"Scanning · {entries} entries · {files} files · {size}",
+                           f"Обход · записей: {entries} · файлов: {files} · {size}"))
+
+        def finished():
+            state["cancel"] = None
+            cancel_button.IsEnabled = False
+
+        cancel = state["cancel"] = Event()
+        cancel_button.IsEnabled = True
+        page.run_job("/api/diskmap/jobs", {"folder": path}, done, progress, cancel, finished)
 
     def on_enter(event, action):
         if event.Key == Key.Enter:

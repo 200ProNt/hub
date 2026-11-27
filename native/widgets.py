@@ -273,6 +273,38 @@ class Page:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def run_job(self, route, payload, done, progress, cancel, finished):
+        def work():
+            identity = self.post(route + "/start", payload)["id"]
+            arguments = {"id": identity}
+            complete = False
+            try:
+                while not cancel.wait(.25):
+                    state = self.post(route + "/status", arguments)
+                    if state["state"] == "running":
+                        self.hub.dispatch(lambda update=state: progress(update) if not cancel.is_set() else None)
+                        continue
+                    if state["state"] == "cancelling":
+                        continue
+                    complete = True
+                    if state["state"] == "done" and not cancel.is_set():
+                        return state["result"]
+                    if state["state"] == "failed":
+                        raise RuntimeError(state["error"])
+                    break
+            finally:
+                if not complete:
+                    self.post(route + "/cancel", arguments)
+            return None
+
+        def with_cleanup():
+            try:
+                return work()
+            finally:
+                self.hub.dispatch(finished)
+
+        self.run(with_cleanup, done)
+
     def notice(self, text):
         if self.hub.current is self:
             self.hub.notice(text)

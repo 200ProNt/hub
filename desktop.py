@@ -18,7 +18,7 @@ def run(background, activate_event, kernel):
     import server
     from native.ui import run_window
 
-    class DesktopServer(server.ThreadingHTTPServer):
+    class DesktopServer(server.HubServer):
         allow_reuse_address = False
 
         def server_bind(self):

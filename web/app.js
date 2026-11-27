@@ -899,6 +899,7 @@ async function init() {
     const info = await Hub.api("/api/info");
     Hub.tools = Array.isArray(info.tools) && info.tools.length ? info.tools : fallbackTools;
     Hub.defaultFolder = info.default_folder || "";
+    Hub.diskmapJobs = info.diskmap_jobs === true;
     Hub.version = info.version || "";
   } catch (error) {
     Hub.tools = fallbackTools;

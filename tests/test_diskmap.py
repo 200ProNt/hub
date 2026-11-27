@@ -7,16 +7,20 @@ import tempfile
 import unittest
 import json
 import os
+import subprocess
 import threading
+import stat
+import time
 import urllib.error
 import urllib.request
-from http.server import ThreadingHTTPServer
-from unittest.mock import patch
+from contextlib import contextmanager
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tools import diskmap  # noqa: E402
+from tools import diskmap, jobs  # noqa: E402
 
 
 class DiskMapTestCase(unittest.TestCase):
@@ -37,6 +41,55 @@ class DiskMapTestCase(unittest.TestCase):
 
     def entry(self, result: dict, name: str) -> dict:
         return next(item for item in result["entries"] if item["name"] == name)
+
+    @unittest.skipUnless(os.name == "nt", "Windows drive roots are required")
+    def test_mounted_volume_root_can_only_be_sized(self):
+        self.write("projects/note.txt", 7)
+        self.write("loose.bin", 8)
+        self.write("Windows/private.bin", 20)
+        drive = next((f"{letter}:" for letter in "ZYXWVUTSRQPONMLK" if not Path(f"{letter}:\\").exists()), None)
+        if drive is None:
+            self.skipTest("No free drive letter for the temporary test volume")
+        mount = subprocess.run(["subst.exe", drive, str(self.root)], capture_output=True, check=False)
+        if mount.returncode:
+            self.skipTest(f"SUBST failed: {mount.stdout or mount.stderr!r}")
+        try:
+            root = drive + "\\"
+            data = diskmap.scan(root, allow_volume_root=True)
+            self.assertTrue(data["read_only_root"])
+            self.assertEqual((data["files"], data["total"]), (2, 15))
+            self.assertEqual(len(data["errors"]), 1)
+            with self.assertRaises(diskmap.ScanError):
+                diskmap.scan(root)
+            with self.assertRaises(diskmap.ScanError):
+                diskmap.files(root)
+            with self.assertRaises(diskmap.RemoveError):
+                diskmap.remove_file(root + "loose.bin", "delete", True)
+            self.assertTrue((self.root / "loose.bin").exists())
+            with patch.object(diskmap.fileguard, "get_system_directories", return_value={self.root.resolve()}):
+                with self.assertRaises(diskmap.ScanError):
+                    diskmap.scan(root, allow_volume_root=True)
+        finally:
+            subprocess.run(["subst.exe", drive, "/D"], check=True, capture_output=True)
+
+    def test_mutation_during_iteration_has_no_stale_follow_up(self):
+        first = self.write("old.txt", 3)
+        self.write("kept.txt", 4)
+        real_scandir = os.scandir
+
+        @contextmanager
+        def scandir(path):
+            with real_scandir(path) as iterator:
+                def entries():
+                    for entry in iterator:
+                        yield entry
+                        if entry.name == first.name:
+                            first.write_bytes(b"rewritten")
+                yield entries()
+
+        with patch.object(diskmap.os, "scandir", scandir):
+            self.assertEqual(diskmap.scan(str(self.root))["total"], 7)
+        self.assertEqual(diskmap.scan(str(self.root))["total"], 13)
 
     def test_sums_sizes_of_subfolders_and_root_files(self) -> None:
         self.write("видео/a.mp4", 3000)
@@ -122,10 +175,82 @@ class DiskMapTestCase(unittest.TestCase):
     def test_second_scan_uses_cache(self) -> None:
         self.write("папка/a.bin", 1000)
 
-        first = diskmap.scan(str(self.root))
-        second = diskmap.scan(str(self.root))
+        first = diskmap.scan(str(self.root), use_cache=True)
+        second = diskmap.scan(str(self.root), use_cache=True)
 
         self.assertIs(first, second)
+        self.write("папка/b.bin", 12)
+        self.assertEqual(diskmap.scan(str(self.root))["total"], 1012)
+
+    def test_streaming_cap_and_depth(self):
+        for number in range(500):
+            self.write(f"{number:03}.bin", 1)
+        scandir = os.scandir
+        read = []
+
+        @contextmanager
+        def counted(path):
+            with scandir(path) as entries:
+                def iterate():
+                    for entry in entries:
+                        read.append(entry.name)
+                        yield entry
+                yield iterate()
+
+        with patch.object(diskmap, "MAX_ENTRIES", 5), patch.object(diskmap.os, "scandir", counted):
+            result = diskmap.scan(str(self.root))
+        self.assertEqual((result["files"], len(read)), (5, 6))
+        self.assertTrue(result["truncated"])
+        self.write("/".join(["a"] * 62) + "/deep.bin", 40)
+        result = diskmap.scan(str(self.root))
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["total"], 500)
+
+    def test_permission_errors_keep_other_results(self):
+        self.write("allowed/a.bin", 13)
+        blocked = self.write("blocked/b.bin", 39).parent
+        scandir = os.scandir
+
+        def checked(path):
+            if Path(path) == blocked:
+                raise PermissionError("denied")
+            return scandir(path)
+
+        with patch.object(diskmap.os, "scandir", checked), patch.object(diskmap, "MAX_ERRORS", 0):
+            result = diskmap.scan(str(self.root))
+        self.assertEqual((result["files"], result["total"]), (1, 13))
+        self.assertEqual((result["error_count"], result["errors"]), (1, []))
+
+    def test_symlink_mode_and_reparse_attributes_are_excluded(self):
+        dummy = [
+            SimpleNamespace(name="link", path="link", stat=Mock(return_value=SimpleNamespace(st_mode=stat.S_IFLNK))),
+            SimpleNamespace(name="reparse", path="reparse", stat=Mock(return_value=SimpleNamespace(
+                st_mode=stat.S_IFREG, st_file_attributes=diskmap.FILE_ATTRIBUTE_REPARSE_POINT))),
+        ]
+
+        @contextmanager
+        def entries(_):
+            yield iter(dummy)
+
+        with patch.object(diskmap.os, "scandir", entries):
+            result = diskmap.scan(str(self.root))
+        self.assertEqual((result["files"], result["links"], result["total"]), (0, 2, 0))
+
+    def test_volume_scan_omits_system_folders_and_does_not_authorize_removal(self):
+        path = self.write("normal.bin", 31)
+        self.write("System Volume Information/secret.bin", 80)
+        self.write("Windows/system.bin", 100)
+        self.write("nested/$Recycle.Bin/deleted.bin", 51)
+        with patch.object(diskmap, "_volume_root", return_value=True):
+            result = diskmap.scan(str(self.root), allow_volume_root=True)
+        self.assertTrue(result["read_only_root"])
+        self.assertEqual(result["total"], 31)
+        self.assertEqual(len(result["errors"]), 3)
+        with self.assertRaises(diskmap.RemoveError):
+            diskmap.remove_file(str(path), "delete", True)
+        with self.assertRaises(diskmap.ScanError):
+            diskmap.files(self.root.resolve().anchor)
+        self.assertTrue(path.is_file())
 
 
 class DiskMapActionsTestCase(unittest.TestCase):
@@ -223,8 +348,10 @@ class DiskMapActionsTestCase(unittest.TestCase):
         link = self.root / "link.bin"
         try:
             link.symlink_to(target)
-        except OSError:
-            self.skipTest("Symbolic links require Windows privileges")
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("WinError 1314: the Windows token cannot create symbolic links")
+            raise
         self.assertEqual(diskmap.files(str(self.root))["files"], [])
         with self.assertRaises(diskmap.RemoveError):
             diskmap.remove_file(str(link), "trash")
@@ -244,6 +371,8 @@ class DiskMapActionsTestCase(unittest.TestCase):
         else:
             path.parent.symlink_to(old, target_is_directory=True)
         try:
+            result = diskmap.scan(str(self.root))
+            self.assertEqual((result["files"], result["links"]), (1, 1))
             with self.assertRaises(diskmap.RemoveError):
                 diskmap.remove_file(str(path), "trash")
             with self.assertRaises(diskmap.ScanError):
@@ -338,9 +467,9 @@ class DiskMapActionsTestCase(unittest.TestCase):
         self.assertFalse(path.exists())
 
     def test_http_endpoints_and_validation(self) -> None:
-        from server import HubHandler
+        from server import HubHandler, HubServer
         path = self.write()
-        server = ThreadingHTTPServer(("127.0.0.1", 0), HubHandler)
+        server = HubServer(("127.0.0.1", 0), HubHandler)
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()
         base = f"http://127.0.0.1:{server.server_port}"
@@ -349,7 +478,7 @@ class DiskMapActionsTestCase(unittest.TestCase):
             data = None if body is None else json.dumps(body).encode()
             req = urllib.request.Request(base + "/api/diskmap/" + route, data=data,
                                          headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=5) as response:
                 return json.load(response)
 
         try:
@@ -373,10 +502,94 @@ class DiskMapActionsTestCase(unittest.TestCase):
                 request("undo", {"run_id": "../invalid"})
             self.assertEqual(caught.exception.code, 400)
             caught.exception.close()
+
+            entered, release, closed = (threading.Event() for _ in range(3))
+            real_scandir = os.scandir
+            for index in range(73):
+                self.write(f"sample-{index}")
+
+            @contextmanager
+            def scandir(directory):
+                with real_scandir(directory) as iterator:
+                    def entries():
+                        for index, entry in enumerate(iterator):
+                            if index == 70:
+                                entered.set()
+                                release.wait(5)
+                            if index > 70:
+                                self.fail("Cancelled job consumed another directory entry")
+                            yield entry
+                    try:
+                        yield entries()
+                    finally:
+                        closed.set()
+
+            def terminal(identity):
+                for _ in range(100):
+                    update = request("jobs/status", identity)
+                    if update["state"] not in ("running", "cancelling"):
+                        return update
+                    time.sleep(.02)
+                self.fail("Background job did not finish")
+
+            folder = {"folder": str(self.root)}
+            with patch.object(diskmap.os, "scandir", scandir):
+                identity = request("jobs/start", folder)
+                try:
+                    self.assertTrue(entered.wait(5))
+                    status = request("jobs/status", identity)
+                    self.assertEqual((status["state"], status["entries"]), ("running", 64))
+                    self.assertGreater(status["files"], 0)
+                    with self.assertRaises(urllib.error.HTTPError) as busy:
+                        request("jobs/start", folder)
+                    self.assertEqual(busy.exception.code, 409)
+                    busy.exception.close()
+                    self.assertEqual(request("jobs/cancel", identity)["state"], "cancelling")
+                finally:
+                    release.set()
+                self.assertTrue(closed.wait(5))
+                self.assertEqual(terminal(identity)["state"], "cancelled")
+
+            result = terminal(request("jobs/start", folder))
+            self.assertEqual((result["state"], result["result"]["files"]), ("done", 74))
+            failed = terminal(request("jobs/start", {"folder": str(self.root / "missing")}))
+            self.assertEqual(failed["state"], "failed")
+            self.assertTrue(failed["error"])
         finally:
             server.shutdown()
             server.server_close()
             worker.join()
+
+
+class JobsTestCase(unittest.TestCase):
+    def test_abandoned_job_checks_lease_and_closes(self):
+        manager = jobs.Jobs(lease_seconds=.05)
+        entered, release, closed = (threading.Event() for _ in range(3))
+
+        def worker(job):
+            try:
+                entered.set()
+                release.wait(3)
+                job.check()
+            finally:
+                closed.set()
+
+        identity = manager.start(worker)
+        try:
+            self.assertTrue(entered.wait(3))
+            time.sleep(.1)
+            release.set()
+            self.assertTrue(closed.wait(3))
+            for _ in range(100):
+                status = manager.poll(identity)
+                if status["state"] == "cancelled":
+                    break
+                time.sleep(.01)
+            self.assertEqual(status["state"], "cancelled")
+            self.assertIsNone(manager.poll(identity))
+        finally:
+            release.set()
+            manager.shutdown()
 
 
 if __name__ == "__main__":

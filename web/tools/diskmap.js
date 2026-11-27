@@ -39,7 +39,9 @@
           </svg>
           Построить
         </button>
+        <button class="btn ghost hidden" id="diskCancel" type="button">Отменить расчёт</button>
       </div>
+      <p class="hint hidden" id="diskProgress" aria-live="polite"></p>
       <p class="hint">Круг делится по размеру папок. Нажми на сектор — заглянешь внутрь и вернёшься по цепочке сверху.</p>
     </section>
 
@@ -122,6 +124,7 @@
         trail: [],
         busy: false,
         closed: false,
+        scan: null,
         hover: null,
         files: [],
         filesVisible: false,
@@ -332,9 +335,8 @@
         if (data.links) {
           bits.push(`${data.links} ${plural(data.links, "ссылка пропущена", "ссылки пропущены", "ссылок пропущено")}`);
         }
-        if (data.errors.length) {
-          bits.push(`${data.errors.length} ${plural(data.errors.length, "папка", "папки", "папок")} без доступа`);
-        }
+        const skipped = data.error_count ?? data.errors.length;
+        if (skipped) bits.push(`пропущено записей: ${skipped}`);
         if (data.truncated) bits.push("слишком много файлов — часть не посчитана");
         $("#diskNote").textContent = bits.join(" · ");
       }
@@ -412,6 +414,10 @@
 
       async function openFiles() {
         if (state.busy || !state.data || state.closed) return;
+        if (state.data.read_only_root) {
+          Hub.toast("Для списка файлов выбери подпапку.");
+          return;
+        }
         state.busy = true;
         Hub.setBusy(true, "Читаю файлы…");
         try {
@@ -477,9 +483,63 @@
 
       /* --- загрузка --- */
 
+      function cancelScan() {
+        if (!state.scan) return;
+        state.scan.cancelled = true;
+        if (!state.closed) {
+          $("#diskCancel").disabled = true;
+          $("#diskProgress").textContent = "Отменяю обход…";
+        }
+        if (state.scan.id && !state.scan.cancelSent) {
+          state.scan.cancelSent = true;
+          Hub.api("/api/diskmap/jobs/cancel", { id: state.scan.id }).catch(() => {});
+        }
+      }
+
+      async function runScan(target) {
+        if (!Hub.diskmapJobs) return Hub.api("/api/diskmap/scan", { folder: target });
+        const current = state.scan = { cancelled: false, id: null };
+        const progress = $("#diskProgress");
+        const cancel = $("#diskCancel");
+        progress.classList.remove("hidden");
+        progress.textContent = "Считаю размеры…";
+        cancel.classList.remove("hidden");
+        cancel.disabled = false;
+        let complete = false;
+        try {
+          const { id } = await Hub.api("/api/diskmap/jobs/start", { folder: target });
+          current.id = id;
+          while (!current.cancelled && !state.closed) {
+            const report = await Hub.api("/api/diskmap/jobs/status", { id });
+            if (report.state === "done") {
+              complete = true;
+              return current.cancelled ? null : report.result;
+            }
+            if (report.state === "failed" || report.state === "cancelled") {
+              complete = true;
+              if (!current.cancelled && report.error) throw new Error(report.error);
+              return null;
+            }
+            if (!current.cancelled && !state.closed) {
+              progress.textContent = `Обход · записей: ${report.entries} · файлов: ${report.files} · ${Hub.fmtSize(report.bytes)}`;
+            }
+            await new Promise(resolve => setTimeout(resolve, 250));
+          }
+          return null;
+        } finally {
+          if (!complete) cancelScan();
+          state.scan = null;
+          if (!state.closed) {
+            cancel.classList.add("hidden");
+            progress.classList.add("hidden");
+          }
+        }
+      }
+
       async function load(path, trailAfter = null) {
         if (state.busy) return;
-        const target = String(path || "").trim();
+        const input = String(path || "").trim();
+        const target = /^[a-z]:$/i.test(input) ? `${input}\\` : input;
         if (!target) {
           Hub.toast("Сначала выбери папку");
           folderInput.focus();
@@ -487,10 +547,14 @@
         }
 
         state.busy = true;
-        Hub.setBusy(true, "Считаю размеры…");
+        if (!Hub.diskmapJobs) Hub.setBusy(true, "Считаю размеры…");
         try {
-          const data = await Hub.api("/api/diskmap/scan", { folder: target });
+          const data = await runScan(target);
           if (state.closed) return;
+          if (!data) {
+            Hub.toast("Отмена расчёта запрошена.");
+            return;
+          }
 
           data.entries = data.entries.map((entry, index) => ({
             ...entry,
@@ -517,10 +581,10 @@
 
           render();
         } catch (error) {
-          Hub.toast(error.message);
+          if (!state.closed) Hub.toast(error.message);
         } finally {
           state.busy = false;
-          Hub.setBusy(false);
+          if (!Hub.diskmapJobs && !state.closed) Hub.setBusy(false);
         }
       }
 
@@ -560,6 +624,7 @@
       /* --- события --- */
 
       $("#diskScan").addEventListener("click", () => load(folderInput.value));
+      $("#diskCancel").addEventListener("click", cancelScan);
       folderInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter") load(folderInput.value);
       });
@@ -680,7 +745,9 @@
       buildQuickChips();
 
       return () => {
+        if (state.busy && !Hub.diskmapJobs) Hub.setBusy(false);
         state.closed = true;
+        cancelScan();
         Hub.dismissDialog();
       };
     },

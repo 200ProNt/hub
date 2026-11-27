@@ -30,6 +30,7 @@ from tools import (
     fileguard,
     filesorter,
     images,
+    jobs,
     monitor,
     notes,
     paths,
@@ -602,6 +603,16 @@ def open_in_explorer(path: str) -> None:
 # --- HTTP ------------------------------------------------------------------
 
 
+class HubServer(ThreadingHTTPServer):
+    def __init__(self, *args, **kwargs):
+        self.jobs = jobs.Jobs()
+        super().__init__(*args, **kwargs)
+
+    def server_close(self):
+        self.jobs.shutdown()
+        super().server_close()
+
+
 class HubHandler(BaseHTTPRequestHandler):
     server_version = f"Hub/{VERSION}"
 
@@ -804,6 +815,7 @@ class HubHandler(BaseHTTPRequestHandler):
                         "version": VERSION,
                         "default_folder": default_folder(),
                         "platform": sys.platform,
+                        "diskmap_jobs": self.client_address[0] == "127.0.0.1" and hasattr(self.server, "jobs"),
                     }
                 )
             if path == "/api/about":
@@ -1123,6 +1135,24 @@ class HubHandler(BaseHTTPRequestHandler):
         if path == "/api/dupes/undo":
             return duplicates.undo(str(body.get("run_id", "")))
 
+        if path in ("/api/diskmap/jobs/start", "/api/diskmap/jobs/status", "/api/diskmap/jobs/cancel"):
+            if self.client_address[0] != "127.0.0.1" or not hasattr(self.server, "jobs"):
+                raise ApiError("Задания карты диска доступны только на этом ПК", 403)
+            if path.endswith("/start"):
+                folder = body.get("folder", "")
+                if not isinstance(folder, str) or not folder.strip():
+                    raise ApiError("Укажи папку, которую нужно посчитать", 400)
+                try:
+                    identity = self.server.jobs.start(
+                        lambda job: diskmap.scan(folder, allow_volume_root=True, control=job))
+                except jobs.Busy as exc:
+                    raise ApiError(str(exc), 409) from exc
+                return {"id": identity}
+            status = self.server.jobs.poll(body.get("id"), cancel=path.endswith("/cancel"))
+            if status is None:
+                raise ApiError("Задание карты диска недоступно", 404)
+            return status
+
         if path == "/api/diskmap/scan":
             return diskmap.scan(str(body.get("folder", "")))
 
@@ -1424,7 +1454,7 @@ def main() -> None:
     local_ip = qrdrop.get_local_ip()
     url = f"http://127.0.0.1:{port}/"
 
-    server = ThreadingHTTPServer(("0.0.0.0", port), HubHandler)
+    server = HubServer(("0.0.0.0", port), HubHandler)
     server.daemon_threads = True
 
     # Запуск иконки в системном трее Windows и глобальных хоткеев (Win+Alt+H)
