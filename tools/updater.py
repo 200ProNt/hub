@@ -1,4 +1,4 @@
-"""Проверка и установка стабильных обновлений Hub с GitHub."""
+"""Проверка и установка стабильных и бета-релизов Hub с GitHub."""
 
 import hashlib
 import json
@@ -16,11 +16,13 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 RELEASES_URL = "https://github.com/200ProNt/hub/releases"
-API_URL = "https://api.github.com/repos/200ProNt/hub/releases/latest"
+API_RELEASES = "https://api.github.com/repos/200ProNt/hub/releases"
+API_URL = API_RELEASES + "/latest"
 INSTALLER_NAME = "Hub-Setup-Windows-x64.exe"
 MAX_INSTALLER_SIZE = 256 * 1024 * 1024
 _ASSET_HOSTS = frozenset(("release-assets.githubusercontent.com", "objects.githubusercontent.com"))
 _VERSION = re.compile(r"[0-9]{1,6}(?:\.[0-9]{1,6}){2,4}")
+_RELEASE_VERSION = re.compile(rf"(?P<number>{_VERSION.pattern})(?P<beta>-beta(?:\.(?P<revision>[1-9][0-9]{{0,5}}))?)?")
 _VERIFY_ERROR = (
     "Установщик не прошёл проверку размера или SHA-256.",
     "The installer failed its file size or SHA-256 check.",
@@ -40,7 +42,7 @@ class Release:
     sha256: str
 
     def __post_init__(self):
-        if not _VERSION.fullmatch(self.version):
+        if not _RELEASE_VERSION.fullmatch(self.version):
             raise UpdateError("Тег релиза Hub имеет неверный формат.", "The Hub release tag has an invalid format.")
         if type(self.size) is not int or not 0 < self.size <= MAX_INSTALLER_SIZE:
             raise UpdateError("GitHub указал недопустимый размер установщика Hub.", "GitHub reported an invalid installer size.")
@@ -81,16 +83,21 @@ def _version_key(version):
     return parts + (0,) * (5 - len(parts))
 
 
-def check(current_version):
-    """Вернуть новый релиз или None. При сбое поднять UpdateError."""
-    installed = _version_key(current_version)
-    max_metadata = 1024 * 1024
+def version_key(version):
+    match = _RELEASE_VERSION.fullmatch(version) if isinstance(version, str) else None
+    if match is None:
+        raise UpdateError("Версия Hub имеет неверный формат.", "The Hub version has an invalid format.")
+    return _version_key(match["number"]), not match["beta"], int(match["revision"] or 0)
+
+
+def _metadata(url):
+    max_metadata = 4 * 1024 * 1024
     try:
-        with _get(API_URL, "application/vnd.github+json") as response:
+        with _get(url, "application/vnd.github+json") as response:
             body = response.read(max_metadata + 1)
         if len(body) > max_metadata:
             raise UpdateError("Ответ GitHub слишком большой.", "The GitHub response was too large.")
-        data = json.loads(body)
+        return json.loads(body)
     except (OSError, HTTPException) as error:
         raise UpdateError(
             "Не удалось связаться с GitHub. Проверь подключение и попробуй ещё раз.",
@@ -99,14 +106,46 @@ def check(current_version):
     except (ValueError, RecursionError) as error:
         raise UpdateError("GitHub вернул некорректный ответ.", "GitHub returned an invalid response.") from error
 
-    if not isinstance(data, dict) or any(type(data.get(key)) is not bool for key in ("draft", "prerelease")):
-        raise UpdateError("GitHub вернул некорректный ответ.", "GitHub returned an invalid response.")
-    if data["draft"] or data["prerelease"]:
-        return None
+
+def _latest_beta():
+    best = None
+    page = 1
+    while True:
+        releases = _metadata(f"{API_RELEASES}?per_page=100&page={page}")
+        if not isinstance(releases, list):
+            raise UpdateError("GitHub вернул некорректный ответ.", "GitHub returned an invalid response.")
+        for release in releases:
+            if not isinstance(release, dict) or release.get("draft") is not False or release.get("prerelease") is not True:
+                continue
+            tag = release.get("tag_name")
+            match = _RELEASE_VERSION.fullmatch(tag[1:]) if isinstance(tag, str) and tag.startswith("v") else None
+            if match and match["beta"] and (best is None or version_key(tag[1:]) > version_key(best["tag_name"][1:])):
+                best = release
+        if len(releases) < 100:
+            return best
+        page += 1
+
+
+def check(current_version, channel="stable", *, include_installed=False):
+    """Return the selected channel's installer, optionally allowing reinstall or downgrade."""
+    installed = version_key(current_version)
+    if channel == "beta":
+        data = _latest_beta()
+        if data is None:
+            return None
+    elif channel == "stable":
+        data = _metadata(API_URL)
+        if not isinstance(data, dict) or any(type(data.get(key)) is not bool for key in ("draft", "prerelease")):
+            raise UpdateError("GitHub вернул некорректный ответ.", "GitHub returned an invalid response.")
+        if data["draft"] or data["prerelease"]:
+            return None
+    else:
+        raise ValueError(f"Unknown Hub update channel: {channel}")
     tag = data.get("tag_name")
-    if not isinstance(tag, str) or not tag.startswith("v"):
+    match = _RELEASE_VERSION.fullmatch(tag[1:]) if isinstance(tag, str) and tag.startswith("v") else None
+    if match is None or bool(match["beta"]) != (channel == "beta"):
         raise UpdateError("Тег релиза Hub имеет неверный формат.", "The Hub release tag has an invalid format.")
-    if _version_key(tag[1:]) <= installed:
+    if not include_installed and version_key(tag[1:]) <= installed:
         return None
 
     assets = data.get("assets")

@@ -42,6 +42,13 @@ try {
         Copy-Item -LiteralPath $icon -Destination $installedIcon -Force
     }
     $package = Join-Path $PSScriptRoot 'Hub.exe'
+    $runtime = @(Get-ChildItem -LiteralPath $PSScriptRoot -Directory -Filter 'HubRuntime-*')
+    if ($runtime.Count -ne 1 -or -not (Get-ChildItem -LiteralPath $runtime[0].FullName -File -Filter 'python3*.dll')) {
+        throw 'Распакуй весь ZIP Hub перед установкой. В комплекте отсутствуют библиотеки Python.'
+    }
+    if ($runtime[0].Parent.FullName -ne $applicationDir) {
+        Copy-Item -LiteralPath $runtime[0].FullName -Destination $applicationDir -Recurse -Force
+    }
     if ([IO.Path]::GetFullPath($package) -ne $application) {
         $staged = Join-Path $applicationDir ('Hub-' + [Guid]::NewGuid() + '.tmp')
         try {

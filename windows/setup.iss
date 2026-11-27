@@ -30,6 +30,9 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 Name: "migrate"; Description: "Перенести данные из браузерной версии Hub"; Flags: unchecked; Check: CanMigrate
 
 [Files]
+#ifdef HubRuntime
+Source: "{#HubRuntime}\*"; DestDir: "{app}\{#HubRuntimeName}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
 Source: "{#HubExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#HubIcon}"; DestDir: "{app}"; DestName: "{#HubIconName}"; Flags: ignoreversion
 

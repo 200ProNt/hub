@@ -59,6 +59,8 @@
 
 В «Настройки → Эксперименты» можно включить Rust Core для карты диска. По умолчанию расчёты выполняет Python. Переключатель применяется к следующему расчёту. При сбое Rust Hub показывает предупреждение и повторяет безопасное чтение в Python. Чтобы вернуться к Python, отключи переключатель. [Устройство Rust Core и результаты замеров](docs/pre-1.6-rust.md).
 
+В «Настройки → Обновления» выбери стабильный или бета-канал. Hub предложит последнюю версию выбранного канала. Если она старее установленной, Hub предупредит об этом перед запуском установщика.
+
 ### Сборка Windows
 
 ```powershell
@@ -66,7 +68,7 @@ py -m pip install -r requirements-windows.txt
 powershell -NoProfile -ExecutionPolicy Bypass -File windows/build.ps1
 ```
 
-Архив появится в `dist`. Для сборки отдельного установщика передай компилятор Inno Setup через `-InnoSetup 'C:\путь\к\ISCC.exe'`. Для сборки нужны Python x64 и Rust toolchain для Windows x64 с `cargo` в `PATH`. Скрипт включает worker в `Hub.exe`. Установленный Hub запускается без Rust toolchain. Для запуска из исходников после установки зависимостей выполни `py desktop.py`. Экспериментальный worker для запуска из исходников можно собрать командой `cargo build --locked --release --manifest-path rust/diskmap-worker/Cargo.toml`.
+Архив появится в `dist`. Для сборки отдельного установщика передай компилятор Inno Setup через `-InnoSetup 'C:\путь\к\ISCC.exe'`. Для сборки нужны Python x64 и Rust toolchain для Windows x64 с `cargo` в `PATH`. Скрипт помещает Python, worker и библиотеки в папку `HubRuntime-<версия>` рядом с `Hub.exe`. Распакуй весь ZIP перед запуском `Setup.cmd`. Установленный Hub запускается без Rust toolchain. Для запуска из исходников после установки зависимостей выполни `py desktop.py`. Экспериментальный worker для запуска из исходников можно собрать командой `cargo build --locked --release --manifest-path rust/diskmap-worker/Cargo.toml`.
 
 ### Запуск прежней версии в браузере
 

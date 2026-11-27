@@ -52,10 +52,25 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.6.0"
+VERSION = "1.6.0.1"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
+    {
+        "version": VERSION,
+        "tag": "1.6.0.1-beta.1",
+        "date": "2026-11-27",
+        "title": "Исправление запуска и каналы обновлений",
+        "title_en": "Startup fix and update channels",
+        "items": [
+            "Hub загружает Python и его библиотеки из каталога приложения, без распаковки в TEMP при запуске.",
+            "В настройках обновлений можно выбрать последнюю стабильную версию или бету.",
+        ],
+        "items_en": [
+            "Hub loads Python and its libraries from the app folder without extracting them to TEMP at startup.",
+            "Update settings now let you choose the latest stable release or beta.",
+        ],
+    },
     {
         "version": "1.6.0",
         "date": "2026-11-27",

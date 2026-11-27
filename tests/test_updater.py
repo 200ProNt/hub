@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from urllib.error import URLError
 from urllib.request import Request
 
@@ -34,6 +34,13 @@ def metadata(**changes):
     }
 
 
+def beta_metadata(version, **flags):
+    beta = updater.Release(version, RELEASE.size, RELEASE.sha256)
+    data = metadata(tag_name=f"v{version}", html_url=beta.url, prerelease=True, **flags)
+    data["assets"][0]["browser_download_url"] = beta.installer_url
+    return data
+
+
 class UpdaterTests(unittest.TestCase):
     def check_with(self, data, installed="1.9.9.1"):
         with patch.object(updater, "_get", return_value=io.BytesIO(json.dumps(data).encode())) as get:
@@ -58,6 +65,25 @@ class UpdaterTests(unittest.TestCase):
         for flags in ({"prerelease": True}, {"draft": True}):
             with self.subTest(flags=flags):
                 self.assertIsNone(self.check_with(metadata(**flags)))
+
+    def test_beta_channel_picks_highest_beta_and_ignores_drafts_and_rc(self):
+        data = [metadata(), beta_metadata("1.10.0.1-beta.10"), beta_metadata("1.10.0.1-beta.2"),
+                beta_metadata("1.11.0-beta.1", draft=True), metadata(tag_name="v1.12.0-rc.1", prerelease=True)]
+        with patch.object(updater, "_get", return_value=io.BytesIO(json.dumps(data).encode())):
+            self.assertEqual(updater.check("1.10.0.1-beta.9", "beta").version, "1.10.0.1-beta.10")
+        self.assertGreater(updater.version_key("1.10.0.1"), updater.version_key("1.10.0.1-beta.10"))
+
+    def test_channel_selection_can_offer_an_older_stable_release(self):
+        with patch.object(updater, "_get", return_value=io.BytesIO(json.dumps(metadata()).encode())):
+            self.assertEqual(updater.check("1.10.0.1-beta.1", "stable", include_installed=True), RELEASE)
+
+    def test_beta_installer_url_and_digest_still_have_to_match(self):
+        for key, value in (("browser_download_url", RELEASE.installer_url), ("digest", "sha256:bad")):
+            data = beta_metadata("1.10.0.1-beta.1")
+            data["assets"][0][key] = value
+            with (self.subTest(key=key), patch.object(updater, "_get", return_value=io.BytesIO(json.dumps([data]).encode())),
+                  self.assertRaises(updater.UpdateError)):
+                updater.check("1.10.0", "beta")
 
     def test_check_rejects_wrong_asset_metadata(self):
         for key, value in (
@@ -128,6 +154,8 @@ class UpdateUiTests(unittest.TestCase):
     def test_install_needs_confirmation_and_closes_hub_after_launch(self):
         page = Mock()
         page.hub.version = "1.9.9"
+        page.hub.settings = {}
+        page.choice.return_value = MagicMock()
         check_button, install_button = Mock(), Mock()
         page.actions.return_value = [check_button, install_button, Mock()]
         page.run.side_effect = lambda work, finish, **_: finish(work())
@@ -139,7 +167,7 @@ class UpdateUiTests(unittest.TestCase):
             self.assertFalse(install_button.IsEnabled)
             (_, check_for_update), (_, install, _), (_, open_release) = page.actions.call_args.args
             check_for_update()
-            check.assert_called_once_with("1.9.9")
+            check.assert_called_once_with("1.9.9", "stable", include_installed=True)
             self.assertTrue(install_button.IsEnabled)
             open_release()
             page.open_url.assert_called_once_with(RELEASE.url)
@@ -160,3 +188,31 @@ class UpdateUiTests(unittest.TestCase):
             install()
             launch.assert_called_with(RELEASE)
             page.hub.close.assert_called_once_with()
+
+    def test_switching_channel_persists_selection_and_clears_previous_installer(self):
+        page = Mock()
+        page.hub.version = "1.10.0.1"
+        page.hub.release = {"tag": "1.10.0.1-beta.1"}
+        page.hub.settings = {"hub-update-channel": "beta"}
+        selector = page.choice.return_value = MagicMock()
+        selection_changed = selector.SelectionChanged
+        check_button, install_button = Mock(), Mock()
+        page.actions.return_value = [check_button, install_button, Mock()]
+        page.run.side_effect = lambda work, finish, **_: finish(work())
+        update_ui.mount(page)
+        self.assertEqual(page.choice.call_args.args[-1], 1)
+        change = selection_changed.__iadd__.call_args.args[0]
+        (_, check), (_, install, _), _ = page.actions.call_args.args
+        with patch.object(updater, "check", return_value=RELEASE) as request:
+            check()
+            self.assertTrue(install_button.IsEnabled)
+            selector.SelectedIndex = 0
+            with patch.object(update_ui.preferences, "update", return_value={"hub-update-channel": "stable"}) as save:
+                change()
+                save.assert_called_once_with({"hub-update-channel": "stable"})
+            self.assertFalse(install_button.IsEnabled)
+            check()
+            request.assert_called_with("1.10.0.1-beta.1", "stable", include_installed=True)
+            install()
+            self.assertEqual(page.confirm.call_args.args[0], update_ui.tr(
+                "Install an older version of Hub?", "Установить более старую версию Hub?"))

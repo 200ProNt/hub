@@ -11,6 +11,7 @@ from pathlib import Path
 from tools import paths
 
 RUST_DISKMAP = "hub-experimental-rust-diskmap"
+UPDATE_CHANNEL = "hub-update-channel"
 OPTIONS = {
     "hub-language": {"en", "ru"},
     "hub-theme": {"auto", "light", "dark"},
@@ -23,6 +24,7 @@ OPTIONS = {
     "hub-onboarded": {"1"},
     "tray": {"on", "off"},
     RUST_DISKMAP: {"on", "off"},
+    UPDATE_CHANNEL: {"stable", "beta"},
 }
 _lock = threading.RLock()
 
