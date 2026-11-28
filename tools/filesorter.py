@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import time
 import uuid
 from pathlib import Path
@@ -284,19 +285,30 @@ def scan(folder: str) -> dict:
 
     items: list[dict] = []
     taken: set[Path] = set()
+    checked_categories = set()
 
     for entry in entries:
         try:
-            if not entry.is_file() or is_hidden(entry):
+            info = entry.lstat()
+            if not stat.S_ISREG(info.st_mode) or fileguard.is_link(info) or is_hidden(entry):
                 continue
             if entry.name in CATEGORY_NAMES:
                 continue
-            info = entry.stat()
         except OSError:
             continue
 
         category = category_for(entry.name)
-        target = unique_target(root / category / entry.name, taken)
+        destination = root / category
+        if category not in checked_categories:
+            if Path(category).name != category or category in ("", ".", ".."):
+                raise ScanError("Некорректное имя категории")
+            try:
+                if os.path.lexists(destination):
+                    fileguard.parents(destination)
+            except (OSError, fileguard.GuardError) as exc:
+                raise ScanError(str(exc)) from exc
+            checked_categories.add(category)
+        target = unique_target(destination / entry.name, taken)
         taken.add(target)
         items.append(
             {
@@ -330,10 +342,11 @@ def scan(folder: str) -> dict:
 
 def apply(folder: str, files: list[str]) -> dict:
     """Переносит только переданные файлы. Возвращает отчёт."""
-    raw = Path(folder).expanduser()
-    if not raw.is_dir():
-        raise ScanError(f"Папка не найдена: {folder}")
-    root = raw.resolve()
+    try:
+        root = fileguard.check_safe_folder(folder)
+        root_identity = fileguard.parents(root)
+    except (OSError, fileguard.GuardError) as exc:
+        raise ScanError(str(exc)) from exc
 
     moved: list[dict] = []
     errors: list[dict] = []
@@ -343,7 +356,7 @@ def apply(folder: str, files: list[str]) -> dict:
             candidate = Path(source)
             if not candidate.is_absolute():
                 candidate = root / candidate
-            candidate = candidate.resolve()
+            candidate = Path(os.path.abspath(candidate))
         except OSError:
             errors.append({"file": str(source), "reason": "Некорректный путь"})
             continue
@@ -351,18 +364,25 @@ def apply(folder: str, files: list[str]) -> dict:
         if _normalized(candidate.parent) != _normalized(root):
             errors.append({"file": candidate.name, "reason": "Файл не из выбранной папки"})
             continue
-        if not candidate.is_file():
-            errors.append({"file": candidate.name, "reason": "Файл уже перемещён или недоступен"})
-            continue
-
         category = category_for(candidate.name)
         destination_dir = root / category
         try:
+            if Path(category).name != category or category in ("", ".", "..") or fileguard.parents(root) != root_identity:
+                raise fileguard.GuardError("Папка сортировки изменилась")
+            info = candidate.lstat()
+            if not stat.S_ISREG(info.st_mode) or fileguard.is_link(info):
+                raise fileguard.GuardError("Путь не указывает на обычный файл")
             destination_dir.mkdir(exist_ok=True)
+            fileguard.parents(destination_dir)
             target = unique_target(destination_dir / candidate.name)
-            size = candidate.stat().st_size
-            shutil.move(str(candidate), str(target))
-        except OSError as exc:
+            if fileguard.identity(candidate.lstat()) != fileguard.identity(info):
+                raise fileguard.GuardError("Файл изменился")
+            size = info.st_size
+            if os.name == "nt":
+                candidate.rename(target)
+            else:
+                shutil.move(str(candidate), str(target))
+        except (OSError, fileguard.GuardError) as exc:
             errors.append({"file": candidate.name, "reason": str(exc)})
             continue
 

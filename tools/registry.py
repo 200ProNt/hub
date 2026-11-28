@@ -98,3 +98,54 @@ TOOLS = [
         "icon": "info",
     },
 ]
+
+NATIVE_TOOLS = [
+    {
+        "id": "file-search",
+        "name": "Поиск файлов",
+        "hint": "Поиск по локальному индексу выбранных папок",
+        "icon": "search",
+    },
+    {
+        "id": "backup",
+        "name": "Резервные копии",
+        "hint": "Создавай проверяемые копии файлов и папок",
+        "icon": "copies",
+    },
+    {
+        "id": "media",
+        "name": "Медиа",
+        "hint": "Конвертируй аудио и видео, работай со страницами PDF",
+        "icon": "image",
+    },
+    {
+        "id": "startup",
+        "name": "Автозагрузка",
+        "hint": "Управляй программами, которые запускаются при входе в Windows",
+        "icon": "power",
+    },
+    {
+        "id": "apps",
+        "name": "Приложения",
+        "hint": "Просматривай и обновляй приложения через WinGet",
+        "icon": "apps",
+    },
+    {
+        "id": "developer",
+        "name": "Разработчику",
+        "hint": "JSON, Regex, Base64, URL и сравнение кода",
+        "icon": "renamer",
+    },
+    {
+        "id": "automation",
+        "name": "Сценарии",
+        "hint": "Связывай инструменты Hub в автоматические сценарии",
+        "icon": "flow",
+    },
+    {
+        "id": "local-ai",
+        "name": "Локальный ИИ",
+        "hint": "Подключай модели Ollama и LM Studio",
+        "icon": "message",
+    },
+]

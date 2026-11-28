@@ -17,6 +17,7 @@ from tools.i18n import set_language, tr
 def run(background, activate_event, kernel):
     import server
     from native.ui import run_window
+    from tools import automation, backup_manager, file_index
 
     class DesktopServer(server.HubServer):
         allow_reuse_address = False
@@ -71,10 +72,17 @@ def run(background, activate_event, kernel):
     http.apply_theme = lambda _: None
     http.daemon_threads = True
     watcher = server.start_clipboard()
+    if file_index.database().is_file():
+        file_index.indexer.request()
+    backup_manager.scheduler.start()
+    automation.runner.start()
     threading.Thread(target=http.serve_forever, daemon=True).start()
     try:
         run_window(http.server_port, server.VERSION, server.default_folder(), start_hidden, setup, server.CHANGELOG[0])
     finally:
+        automation.runner.shutdown()
+        backup_manager.scheduler.shutdown()
+        file_index.indexer.shutdown()
         exiting.set()
         if listener is not None:
             listener.join(timeout=4)

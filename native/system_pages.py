@@ -1,5 +1,6 @@
 """Native QR-Drop, Trash, Monitor and About pages."""
 
+from collections import deque
 from datetime import datetime
 from urllib.parse import urlencode
 
@@ -16,8 +17,9 @@ from System.Windows.Media.Imaging import BitmapCacheOption, BitmapImage
 from System.Windows.Shapes import Polyline
 from System.Windows.Threading import DispatcherTimer
 
-from tools import paths
+from tools import monitor_telemetry, paths
 from tools.i18n import tr
+from tools.registry import NATIVE_TOOLS
 
 from .widgets import label, make
 
@@ -65,6 +67,7 @@ def _poll(page, visible_element, seconds, refresh):
     timer.Tick += tick
     timer.Start()
     page.on_leave(timer.Stop)
+    return timer
 
 
 def _loader(page, path, render):
@@ -382,6 +385,104 @@ def _set_vital(vital, caption, description="", percent=0, points=()):
                 line.Points.Add(Point(index * 106 / (len(points) - 1), 15 - min(100, max(0, number)) * 0.14))
 
 
+def _monitor_metrics(page, paused):
+    modes = (None, "disk", "network", "gpu", "temperature")
+    selection = page.choice(tr("More metrics", "Дополнительные показатели"),
+                            (tr("Overview only", "Только сводка"), tr("Physical disks", "Физические диски"),
+                             tr("Network", "Сеть"), "GPU", tr("Temperatures", "Температуры")))
+    panel = page.add(StackPanel())
+    chart = make(UniformGrid, Columns=1, Margin=Thickness(0, 0, -8, 0))
+    panel.Children.Add(chart)
+    trend = _vital(chart, tr("Recent samples", "Последние измерения"), history=True)
+    output = page.rows(max_height=148)
+    page.panel.Children.Remove(output)
+    panel.Children.Add(output)
+    AutomationProperties.SetName(output, tr("Metric details", "Подробности показателей"))
+    panel.Visibility = Visibility.Collapsed
+    history = {mode: deque(maxlen=30) for mode in modes if mode}
+    pending = False
+
+    def current():
+        return modes[max(0, selection.SelectedIndex)]
+
+    def rate(value):
+        return tr("Unavailable", "Недоступно") if value is None else _size(value) + tr("/s", "/с")
+
+    def percent(value):
+        return tr("Unavailable", "Недоступно") if value is None else _percent(value)
+
+    def label_data(mode, data):
+        if mode == "temperature":
+            rows, readings = [], []
+            for part, title in (("cpu", tr("CPU", "Процессор")), ("gpu", "GPU")):
+                series = data.get(part, [])
+                if not series:
+                    rows.append(title + " · " + tr("Unavailable", "Недоступно"))
+                for item in series:
+                    rows.append(f"{title} · {item['name']} · {item['value']:g} °C")
+                    readings.append(item["value"])
+            return (rows, readings, tr("Highest reported temperature", "Наибольшая температура"),
+                    lambda value: f"{value:g} °C")
+        if mode == "network":
+            return ([tr(f"{row['name']} · Receive {rate(row['received'])} · Send {rate(row['sent'])}",
+                        f"{row['name']} · Приём {rate(row['received'])} · Отправка {rate(row['sent'])}") for row in data],
+                    [row["received"] + row["sent"] for row in data
+                     if row["received"] is not None and row["sent"] is not None],
+                    tr("Busiest reported adapter (receive + send)", "Самый активный адаптер (приём + отправка)"), rate)
+        if mode == "disk":
+            rows = [tr(f"{row['name']} · {percent(row['busy'])} · Read {rate(row['read'])} · Write {rate(row['write'])}",
+                       f"{row['name']} · {percent(row['busy'])} · Чтение {rate(row['read'])} · Запись {rate(row['write'])}")
+                    for row in data]
+        else:
+            unavailable = tr("Unavailable", "Недоступно")
+            rows = [f"{row['name']} · {percent(row['busy'])} · VRAM "
+                    f"{_size(row['memory']) if row['memory'] is not None else unavailable}" for row in data]
+        return rows, [row["busy"] for row in data if row["busy"] is not None], tr("Highest activity", "Наибольшая нагрузка"), percent
+
+    def refresh():
+        nonlocal pending
+        mode = current()
+        if not mode or pending or paused.IsChecked:
+            return
+        pending = True
+
+        def work():
+            try:
+                return monitor_telemetry.read(mode)
+            except (TypeError, ValueError, OverflowError):
+                return {} if mode == "temperature" else []
+
+        def render(data):
+            nonlocal pending
+            pending = False
+            if paused.IsChecked or current() != mode:
+                refresh()
+                return
+            rows, points, caption, formatter = label_data(mode, data)
+            page.show_rows(output, rows, str)
+            output.Visibility = Visibility.Visible if rows else Visibility.Collapsed
+            if points:
+                peak = max(points)
+                history[mode].append(peak)
+                ceiling = max(1, *history[mode]) if mode == "network" else 100
+                _set_vital(trend, formatter(peak), caption, points=[100 * x / ceiling for x in history[mode]])
+            else:
+                _set_vital(trend, tr("Unavailable", "Недоступно"),
+                           tr("No readings from the local provider.", "Локальный источник не передал показания."))
+
+        page.run(work, render, message="")
+
+    def changed(*_):
+        mode = current()
+        panel.Visibility = Visibility.Visible if mode else Visibility.Collapsed
+        output.Visibility = Visibility.Collapsed
+        _set_vital(trend, tr("Paused" if paused.IsChecked else "Reading…", "Пауза" if paused.IsChecked else "Читаю…"))
+        refresh()
+
+    selection.SelectionChanged += changed
+    return refresh
+
+
 def _process_identity(item):
     return item["pid"], item["name"], item["creation"]
 
@@ -443,11 +544,16 @@ def _monitor(page):
     paused = page.check(tr("Pause updates", "Пауза обновления"))
     page.panel.Children.Remove(paused)
     state.Children.Add(paused)
-    live = label(tr("Refreshes every 2 s", "Обновление каждые 2 с"), 12, muted=True)
+    live = label("", 12, muted=True)
     live.Margin = Thickness(10, 5, 0, 6)
     live.TextAlignment = TextAlignment.Right
     Grid.SetColumn(live, 1)
     state.Children.Add(live)
+
+    intervals = (2, 5, 10)
+    interval = page.choice(tr("Refresh interval", "Интервал обновления"),
+                           [tr(f"{seconds} seconds", f"{seconds} с") for seconds in intervals])
+    refresh_metrics = _monitor_metrics(page, paused)
 
     count = page.section(tr("Processes", "Процессы"))
     processes = []
@@ -464,12 +570,16 @@ def _monitor(page):
                 tr("No matching processes.", "Нет подходящих процессов.") if processes else
                 tr("Loading processes…", "Загружаю процессы…")
             )
-        elif not item["can_stop"]:
-            info.Text = _process_reason(item)
-        elif not item.get("can_minimize"):
-            info.Text = tr("The selected process has no visible windows.", "У выбранного процесса нет видимых окон.")
         else:
-            info.Text = tr(f"Selected: {item['name']} · PID {item['pid']}", f"Выбран {item['name']} · PID {item['pid']}")
+            cpu_label = tr("CPU", "ЦП")
+            description = f"{item['name']} · PID {item['pid']} · {cpu_label} {_percent(item['cpu'])} · {_size(item['memory'])}"
+            if item.get("started"):
+                description += " · " + _date(item["started"])
+            if not item["can_stop"]:
+                description += "\n" + _process_reason(item)
+            elif not item.get("can_minimize"):
+                description += "\n" + tr("No visible windows", "Нет видимых окон")
+            info.Text = description
 
     def render_list(*_):
         nonlocal shown
@@ -519,6 +629,8 @@ def _monitor(page):
 
     def render(data):
         nonlocal processes
+        if paused.IsChecked:
+            return
         system = data["system"]
         memory, drive = system["memory"], system["disk"]
         history = data.get("history", [])
@@ -546,9 +658,13 @@ def _monitor(page):
     def refresh():
         if not paused.IsChecked:
             reload()
+            refresh_metrics()
 
     def toggle_pause(*_):
-        live.Text = tr("Updates paused", "Обновление на паузе") if paused.IsChecked else tr("Refreshes every 2 s", "Обновление каждые 2 с")
+        seconds = intervals[max(0, interval.SelectedIndex)]
+        timer.Interval = TimeSpan.FromSeconds(seconds)
+        live.Text = (tr("Updates paused", "Обновление на паузе") if paused.IsChecked else
+                     tr(f"Refreshes every {seconds} s", f"Обновление каждые {seconds} с"))
         refresh()
 
     def process_action(action):
@@ -582,7 +698,7 @@ def _monitor(page):
 
     minimize_button, stop_button, _ = page.actions((tr("Minimize windows", "Свернуть окна"), lambda: process_action("minimize")),
                                                    (tr("End process", "Закрыть процесс"), lambda: process_action("terminate")),
-                                                   (tr("Refresh", "Обновить"), reload))
+                                                   (tr("Refresh", "Обновить"), refresh))
     info = page.text("", muted=True)
     header = _process_columns(tr("Process name", "Имя процесса"), tr("CPU", "ЦП"), tr("Memory", "Память"), "PID", heading=True)
     header.Margin = Thickness(14, 0, 23, 3)
@@ -593,10 +709,11 @@ def _monitor(page):
     order.SelectionChanged += render_list
     paused.Checked += toggle_pause
     paused.Unchecked += toggle_pause
+    interval.SelectionChanged += toggle_pause
     rows.SelectionChanged += selected
     selected()
-    refresh()
-    _poll(page, grid, 2, refresh)
+    timer = _poll(page, grid, intervals[0], refresh)
+    toggle_pause()
 
 
 def _about(page):
@@ -664,8 +781,8 @@ def _about(page):
         info.update(data)
         title.Text = f"Hub {data['version']}"
         details.Text = tr(
-            f"Author: {data['author']}  ·  {data['license']}  ·  Tools: {data['tools']}  ·  Python {data['python']} + WPF",
-            f"Автор: {data['author']}  ·  {data['license']}  ·  инструментов: {data['tools']}  ·  Python {data['python']} + WPF",
+            f"Author: {data['author']}  ·  {data['license']}  ·  Tools: {data['tools'] + len(NATIVE_TOOLS)}  ·  Python {data['python']} + WPF",
+            f"Автор: {data['author']}  ·  {data['license']}  ·  инструментов: {data['tools'] + len(NATIVE_TOOLS)}  ·  Python {data['python']} + WPF",
         )
         project.Text = data["folder"]
         release_notes.Text = "\n\n".join(

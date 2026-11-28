@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -13,6 +14,8 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -42,6 +45,21 @@ class SystemFolderGuardTests(unittest.TestCase):
         with self.assertRaises(fileguard.GuardError) as caught:
             fileguard.check_safe_folder(anchor)
         self.assertIn("Системная папка защищена", str(caught.exception))
+
+    def test_check_safe_folder_rejects_a_directory_below_a_link(self) -> None:
+        target = self.test_dir / "target"
+        (target / "child").mkdir(parents=True)
+        link = self.test_dir / "link"
+        if sys.platform == "win32":
+            result = subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/j", str(link), str(target)],
+                                    capture_output=True)
+            if result.returncode:
+                self.skipTest("Creating a junction is unavailable")
+        else:
+            link.symlink_to(target, target_is_directory=True)
+
+        with self.assertRaisesRegex(fileguard.GuardError, "ссылка"):
+            fileguard.check_safe_folder(link / "child")
 
     def test_check_safe_folder_rejects_windows_or_etc(self) -> None:
         if sys.platform == "win32":
@@ -148,6 +166,26 @@ class CrashDurabilityTests(unittest.TestCase):
 
         corrupted_backups = list(self.tmp_dir.glob("clipboard.corrupted.*.json"))
         self.assertEqual(len(corrupted_backups), 1)
+
+
+class LanRouteTests(unittest.TestCase):
+    def test_only_phone_routes_can_be_used_from_the_lan(self) -> None:
+        handler = object.__new__(server.HubHandler)
+        handler.server = SimpleNamespace(server_port=8770)
+        handler.headers = {"Host": "192.168.1.100:8770"}
+        handler.client_address = ("192.168.1.101", 10000)
+        handler._send_json = Mock()
+        for method, path, allowed in (
+            ("GET", "/drop", True),
+            ("GET", "/api/drop/download?name=photo.jpg", True),
+            ("POST", "/api/drop/upload", True),
+            ("POST", "/api/drop/share-file", False),
+            ("GET", "/", False),
+            ("GET", "/api/system/backup", False),
+        ):
+            with self.subTest(method=method, path=path):
+                handler.command, handler.path = method, path
+                self.assertEqual(handler._security_check(), allowed)
 
 
 class HttpApiSecurityTests(unittest.TestCase):

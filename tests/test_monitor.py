@@ -11,6 +11,11 @@ from tools import monitor
 
 
 class PercentTestCase(unittest.TestCase):
+    def test_system_cpu_uses_idle_time_and_keeps_idle_as_zero(self):
+        self.assertEqual(monitor._cpu_percent((100, 50), (200, 100)), 50.0)
+        self.assertEqual(monitor._cpu_percent((100, 50), (200, 150)), 0.0)
+        self.assertIsNone(monitor._cpu_percent((100, 50), (110, 70)))
+
     def test_share_of_all_cores(self):
         self.assertEqual(monitor._percent(1.0, 1.0, 4), 25.0)
         self.assertEqual(monitor._percent(2.0, 1.0, 4), 50.0)

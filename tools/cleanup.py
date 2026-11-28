@@ -141,9 +141,10 @@ def _junk(name: str) -> bool:
     return Path(lower).suffix in JUNK_SUFFIXES
 
 
-def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = True) -> dict:
+def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = True, *, authorize=True, control=None) -> dict:
     with _lock:
-        _allowed.clear()
+        allowed = _allowed if authorize else {}
+        allowed.clear()
         if not folder or not folder.strip():
             raise ScanError("Укажи папку для уборки")
         try:
@@ -178,7 +179,9 @@ def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = Tru
             if len(errors) < 25:
                 errors.append({"path": getattr(exc, "filename", "") or str(root), "reason": exc.strerror or str(exc)})
 
-        for current, dirs, names in os.walk(root, topdown=False, onerror=on_error, followlinks=False):
+        for current, dirs, names in os.walk(root, topdown=True, onerror=on_error, followlinks=False):
+            if control is not None:
+                control.check()
             current_path = Path(current)
             depth = len(current_path.relative_to(root).parts)
             kept = []
@@ -193,6 +196,7 @@ def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = Tru
                     continue
                 kept.append(name)
 
+            dirs[:] = kept
             for name in kept:
                 child = Path(current) / name
                 try:
@@ -209,7 +213,7 @@ def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = Tru
                     "kind": "dir",
                 }
                 try:
-                    _allowed[os.path.normcase(str(child))] = (
+                    allowed[os.path.normcase(str(child))] = (
                         fileguard.identity(info),
                         root_parents if current_path == root else fileguard.parents(current_path),
                     )
@@ -219,6 +223,8 @@ def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = Tru
                 empty.append(entry)
 
             for name in names:
+                if control is not None:
+                    control.check()
                 if seen >= MAX_ENTRIES:
                     truncated = True
                     break
@@ -243,7 +249,7 @@ def scan(folder: str, age_days: int = DEFAULT_AGE_DAYS, include_junk: bool = Tru
                     "reason": "junk" if is_junk else "old",
                 }
                 try:
-                    _allowed[os.path.normcase(str(child))] = (
+                    allowed[os.path.normcase(str(child))] = (
                         fileguard.identity(info),
                         root_parents if current_path == root else fileguard.parents(current_path),
                     )

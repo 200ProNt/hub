@@ -52,12 +52,32 @@ DATA_DIR = paths.DATA_DIR
 START_PORT = 8770
 PORT_ATTEMPTS = 30
 MAX_BODY_BYTES = 8 * 1024 * 1024
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 # История версий для вкладки «О программе». Новые записи — сверху.
 CHANGELOG = [
     {
         "version": VERSION,
+        "date": "2026-11-28",
+        "title": "Системные инструменты, резервные копии и сценарии",
+        "title_en": "System tools, backups, and workflows",
+        "items": [
+            "Управление автозагрузкой и приложениями через WinGet. В мониторинге появились графики диска, сети и GPU.",
+            "Поиск по выбранным папкам и резервные копии с версиями, проверкой и предпросмотром восстановления.",
+            "Обработка аудио, видео и PDF, инструменты JSON, Regex, Base64, URL и сравнение файлов.",
+            "Редактор сценариев с условиями, расписанием и историей запусков.",
+            "Подключение к локальным моделям Ollama и LM Studio, в том числе для черновиков сценариев.",
+        ],
+        "items_en": [
+            "Manage startup entries and WinGet apps. PC Monitor adds disk, network, and GPU charts.",
+            "Search selected folders and create versioned backups with integrity checks and restore previews.",
+            "Process audio, video, and PDF files. Work with JSON, regex, Base64, and URLs, or compare files.",
+            "Build workflows with conditions, schedules, and run history.",
+            "Connect to local Ollama and LM Studio models, including for workflow drafts.",
+        ],
+    },
+    {
+        "version": "1.6.0",
         "date": "2026-11-27",
         "title": "Быстрая карта диска и каналы обновлений",
         "title_en": "Faster Disk Map and update channels",
@@ -710,20 +730,6 @@ class HubHandler(BaseHTTPRequestHandler):
         return True
 
     def _security_check(self) -> bool:
-        if getattr(self.server, "desktop", False):
-            local = self.client_address[0] == "127.0.0.1"
-            host = self.headers.get("Host", "").lower()
-            origin = self.headers.get("Origin")
-            local_hosts = {f"{name}:{self.server.server_port}" for name in ("127.0.0.1", "localhost")}
-            phone_routes = {
-                "GET": {"/drop", "/api/drop/info", "/api/drop/latest-text", "/api/drop/download"},
-                "POST": {"/api/drop/send-text", "/api/drop/upload"},
-            }
-            if (local and host not in local_hosts) or (
-                not local and urlparse(self.path).path not in phone_routes.get(self.command, ())
-            ) or (origin and origin != f"http://{host}"):
-                self._send_json({"error": "Запрос недоступен"}, 403)
-                return False
         if not self._is_allowed_host():
             self._send_json(
                 {"error": "Запрос заблокирован: недопустимый узел Host (защита от DNS Rebinding)"},
@@ -735,6 +741,19 @@ class HubHandler(BaseHTTPRequestHandler):
                 {"error": "Запрос заблокирован: запрещён межсайтовый доступ (CSRF/CORS)"},
                 403,
             )
+            return False
+        local = self.client_address[0] == "127.0.0.1"
+        host = self.headers.get("Host", "").lower()
+        origin = self.headers.get("Origin")
+        local_hosts = {f"{name}:{self.server.server_port}" for name in ("127.0.0.1", "localhost")}
+        phone_routes = {
+            "GET": {"/drop", "/api/drop/info", "/api/drop/latest-text", "/api/drop/download"},
+            "POST": {"/api/drop/send-text", "/api/drop/upload"},
+        }
+        if (local and host not in local_hosts) or (
+            not local and urlparse(self.path).path not in phone_routes.get(self.command, ())
+        ) or (origin and origin != f"http://{host}"):
+            self._send_json({"error": "Запрос недоступен"}, 403)
             return False
         return True
 

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _trash_tmp = tempfile.TemporaryDirectory()
 os.environ["HUB_TRASH_DIR"] = _trash_tmp.name
 
-from tools import duplicates  # noqa: E402
+from tools import duplicates, trash  # noqa: E402
 
 
 def tearDownModule() -> None:
@@ -116,6 +116,17 @@ class DuplicatesTestCase(unittest.TestCase):
         with self.assertRaises(duplicates.RemoveError):
             duplicates.remove(str(self.root), [str(first), str(second)])
         self.assertTrue(first.exists() and second.exists())
+
+    def test_cleanup_journal_is_not_treated_as_a_duplicate_run(self):
+        original = self.write("old.txt", b"a file from Cleanup")
+        moved = trash.move([str(original)], "cleanup")
+        try:
+            self.assertIsNone(duplicates.last_run())
+            with self.assertRaises(duplicates.RemoveError):
+                duplicates.undo(moved["run_id"])
+            self.assertFalse(original.exists())
+        finally:
+            trash.undo(moved["run_id"])
 
     def test_remove_rejects_unknown_path(self) -> None:
         pics = self.root / "pics"

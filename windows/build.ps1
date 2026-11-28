@@ -28,7 +28,7 @@ try {
     # PyInstaller ищет DLL в PATH. В сборку могут попасть системные DLL соседних приложений.
     $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
     & $Python -m PyInstaller --noconfirm --onedir --contents-directory $runtimeName --windowed --name Hub `
-        --icon $icon --specpath $build --workpath $build --distpath $Output --add-binary "$worker;bin" `
+        --icon $icon --specpath $build --workpath $build --distpath $Output --add-binary "$worker;bin" --copy-metadata pypdf `
         --add-data "$root/native/material;native/material" --add-data "$root/web/fonts;web/fonts" --add-data "$root/web/hub-icon*;web" `
         --add-data "$root\native\window.xaml;native" --add-data "$root/native/flags;native/flags" --add-data "$root\README.md;." `
         --add-data "$root\web\drop.html;web" --add-data "$root\web\transfer.html;web" `

@@ -10,16 +10,56 @@ from __future__ import annotations
 import base64
 import os
 import re
+import tempfile
+from io import BytesIO
 from pathlib import Path
 
 from tools import fileguard
 
 MAX_IMAGE_BYTES = 50 * 1024 * 1024  # 50 МБ
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+INPUT_FORMATS = ("PNG", "JPEG", "WEBP", "GIF", "BMP")
 
 
 class ImageError(RuntimeError):
     """Ошибка обработки или сохранения изображения."""
+
+
+def process_image(name, source, format_name, ext, quality, max_dimension):
+    from PIL import Image, ImageOps
+
+    if isinstance(source, Path):
+        original_size, input_data = source.stat().st_size, source
+    elif isinstance(source, bytes):
+        original_size, input_data = len(source), BytesIO(source)
+    else:
+        original_size, input_data = os.fstat(source.fileno()).st_size, source
+    with Image.open(input_data, formats=INPUT_FORMATS) as opened:
+        with ImageOps.exif_transpose(opened) as oriented:
+            original_dimensions = oriented.size
+            with oriented.convert("RGBA") as converted:
+                if max_dimension:
+                    converted.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+                with BytesIO() as output:
+                    if format_name == "JPEG":
+                        with Image.new("RGB", converted.size) as opaque:
+                            opaque.paste(converted, mask=converted.getchannel("A"))
+                            opaque.save(output, format_name, quality=quality, optimize=True)
+                    else:
+                        options = {"quality": quality} if format_name == "WEBP" else {"optimize": True}
+                        converted.save(output, format_name, **options)
+                    encoded = output.getvalue()
+                dimensions = converted.size
+
+    with Image.open(BytesIO(encoded)) as result:
+        result.thumbnail((320, 220), Image.Resampling.LANCZOS)
+        with BytesIO() as preview:
+            result.save(preview, "PNG")
+            thumbnail = preview.getvalue()
+    return {
+        "name": f"{Path(name).stem}.{ext}", "original_size": original_size, "original_dimensions": original_dimensions,
+        "dimensions": dimensions, "data": encoded, "thumbnail": thumbnail,
+    }
 
 
 def sanitize_filename(name: str) -> str:
@@ -73,10 +113,24 @@ def save_image(target_dir: str, filename: str, data_base64: str) -> dict:
     if not data:
         raise ImageError("Пустые данные изображения")
 
+    temporary = None
     try:
-        dest_path.write_bytes(data)
-    except OSError as exc:
+        staged = tempfile.NamedTemporaryFile(dir=dest_folder, prefix=".hub-image-", suffix=".tmp", delete=False)
+        temporary = Path(staged.name)
+        with staged:
+            staged.write(data)
+            staged.flush()
+            os.fsync(staged.fileno())
+        fileguard.parents(dest_folder)
+        if os.name == "nt":
+            temporary.rename(dest_path)
+        else:
+            os.link(temporary, dest_path)
+    except (OSError, fileguard.GuardError) as exc:
         raise ImageError(f"Не удалось записать файл: {exc}") from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
     return {
         "ok": True,

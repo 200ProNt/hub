@@ -3,7 +3,6 @@
 from base64 import b64encode
 from contextlib import contextmanager
 from datetime import datetime
-from io import BytesIO
 import ntpath
 from pathlib import Path, PureWindowsPath
 import re
@@ -503,45 +502,7 @@ def _compare(page):
     deep.Unchecked += rules_changed
 
 
-_IMAGE_INPUTS = ("PNG", "JPEG", "WEBP", "GIF", "BMP")
 _IMAGE_OUTPUTS = (("WEBP", "webp"), ("JPEG", "jpg"), ("PNG", "png"))
-
-
-def _process_image(name, source, format_name, ext, quality, max_dimension):
-    from PIL import Image as PillowImage, ImageOps
-
-    original_size = source.stat().st_size if isinstance(source, Path) else len(source)
-    with PillowImage.open(source if isinstance(source, Path) else BytesIO(source), formats=_IMAGE_INPUTS) as opened:
-        with ImageOps.exif_transpose(opened) as oriented:
-            original_dimensions = oriented.size
-            with oriented.convert("RGBA") as converted:
-                if max_dimension:
-                    converted.thumbnail((max_dimension, max_dimension), PillowImage.Resampling.LANCZOS)
-                with BytesIO() as output:
-                    if format_name == "JPEG":
-                        with PillowImage.new("RGB", converted.size) as opaque:
-                            opaque.paste(converted, mask=converted.getchannel("A"))
-                            opaque.save(output, format_name, quality=quality, optimize=True)
-                    else:
-                        options = {"quality": quality} if format_name == "WEBP" else {"optimize": True}
-                        converted.save(output, format_name, **options)
-                    encoded = output.getvalue()
-                dimensions = converted.size
-
-    # Preview the encoded result, including any compression artifacts.
-    with PillowImage.open(BytesIO(encoded)) as result:
-        result.thumbnail((320, 220), PillowImage.Resampling.LANCZOS)
-        with BytesIO() as preview:
-            result.save(preview, "PNG")
-            thumbnail = preview.getvalue()
-    return {
-        "name": f"{Path(name).stem}.{ext}",
-        "original_size": original_size,
-        "original_dimensions": original_dimensions,
-        "dimensions": dimensions,
-        "data": encoded,
-        "thumbnail": thumbnail,
-    }
 
 
 def _bitmap(data):
@@ -573,6 +534,7 @@ def _clipboard_image():
 
 
 def _images(page):
+    page.actions((tr("Video, audio, and PDF", "Видео, аудио и PDF"), lambda: page.go("media")))
     output = page.choice(tr("Output format", "Формат результата"), ("WebP", "JPEG", "PNG"))
     with _group(page) as quality_group:
         quality = _slider(page, tr("Quality", "Качество"), 10, 100, 80, "%")
@@ -628,7 +590,7 @@ def _images(page):
             produced, failures = [], []
             for name, source in batch:
                 try:
-                    produced.append(_process_image(name, source, *settings))
+                    produced.append(image_tools.process_image(name, source, *settings))
                 except (OSError, ValueError, OverflowError) as error:
                     failures.append(f"{name} · {error}")
             return produced, failures

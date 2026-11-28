@@ -31,13 +31,13 @@ from System.Windows.Threading import DispatcherTimer
 
 from tools import paths, preferences, tray
 from tools.i18n import set_language, tr
-from tools.registry import TOOLS
+from tools.registry import NATIVE_TOOLS, TOOLS
 
 from .backdrop import acrylic
 from .palettes import ACCENTS, RADII, palette
 from .widgets import Page, glyph, label, make
 
-TITLES = {item["id"]: item for item in TOOLS}
+TITLES = {item["id"]: item for item in (*TOOLS, *NATIVE_TOOLS)}
 ENGLISH_TITLES = {
     "home": ("Home", "Daily overview and quick actions"),
     "clipboard": ("Clipboard", "Find and reuse copied text"),
@@ -48,18 +48,27 @@ ENGLISH_TITLES = {
     "dupes": ("Duplicate Files", "Find files with identical contents"),
     "bigfiles": ("Large Files", "See what takes up the most space"),
     "diskmap": ("Disk Map", "See what takes up space in a folder or drive"),
+    "file-search": ("File Search", "Find files in the folders you index"),
+    "backup": ("Backup", "Create, verify, and restore versions of your files"),
     "compare": ("Compare Folders", "Find new, missing, and changed files"),
     "images": ("Image Tools", "Convert, compress, and resize images"),
+    "media": ("Media", "Convert audio and video or edit PDF pages"),
     "checksum": ("Hashes and Passwords", "Verify file checksums and generate passwords"),
     "cleanup": ("Cleanup", "Find old files and empty folders"),
     "trash": ("Trash", "Restore files moved to Hub Trash"),
     "monitor": ("PC Monitor", "Track system and process activity"),
+    "startup": ("Startup", "Manage programs that run when you sign in to Windows"),
+    "apps": ("Applications", "Find and manage apps with Windows Package Manager"),
+    "developer": ("Developer Tools", "Format, encode, and compare technical data"),
+    "automation": ("Workflows", "Build and run sequences of Hub actions"),
+    "local-ai": ("Local AI", "Ask an Ollama or LM Studio model on this PC"),
     "about": ("About", "Version, license, and source code"),
 }
 GROUPS = (
     (("Workspace", "Рабочее"), ("home", "notes", "clipboard", "qrdrop")),
-    (("Files", "Файлы"), ("sorter", "renamer", "dupes", "bigfiles", "diskmap", "compare", "images", "checksum", "cleanup")),
-    (("System", "Система"), ("trash", "monitor", "about")),
+    (("Files", "Файлы"), ("file-search", "backup", "sorter", "renamer", "dupes", "bigfiles", "diskmap", "compare", "images", "media", "checksum", "cleanup")),
+    (("System", "Система"), ("trash", "monitor", "startup", "apps", "about")),
+    (("Tools", "Инструменты"), ("developer", "automation", "local-ai")),
 )
 ACCENT_NAMES = {
     "graphite": ("Graphite", "Графит"),
@@ -535,6 +544,30 @@ class HubWindow:
             elif target in ("renamer", "compare", "images", "checksum"):
                 from .workflow_pages import mount
                 mount(page, target)
+            elif target == "startup":
+                from .startup_page import mount
+                mount(page)
+            elif target == "apps":
+                from .apps_page import mount
+                mount(page)
+            elif target == "file-search":
+                from .file_search_page import mount
+                mount(page)
+            elif target == "backup":
+                from .backup_page import mount
+                mount(page)
+            elif target == "media":
+                from .media_page import mount
+                mount(page)
+            elif target == "developer":
+                from .developer_page import mount
+                mount(page)
+            elif target == "automation":
+                from .automation_page import mount
+                mount(page)
+            elif target == "local-ai":
+                from .local_ai_page import mount
+                mount(page)
             else:
                 from .system_pages import mount
                 mount(page, target)

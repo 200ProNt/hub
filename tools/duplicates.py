@@ -338,6 +338,8 @@ def _read_journal(run_id: str) -> tuple[Path, dict]:
 
 def undo(run_id: str) -> dict:
     journal_path, data = _read_journal(run_id)
+    if data.get("source", "duplicates") != "duplicates":
+        raise RemoveError("Этот перенос создан другим инструментом")
     if data.get("undone"):
         return {"restored_count": 0, "restored_size": 0}
 
@@ -384,7 +386,7 @@ def last_run() -> dict | None:
             data = json.loads(journal.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if data.get("undone"):
+        if not isinstance(data, dict) or data.get("undone") or data.get("source", "duplicates") != "duplicates":
             continue
         moved = data.get("moved", [])
         if not moved:

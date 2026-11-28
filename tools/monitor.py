@@ -22,6 +22,7 @@ from ctypes import wintypes
 
 SAMPLE_INTERVAL = 1.2
 FIRST_WAIT = 0.35
+IDLE_TIMEOUT = 12
 MAX_PROCESSES = 400
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_TERMINATE = 0x0001
@@ -124,6 +125,8 @@ def _libs() -> dict:
         ctypes.POINTER(wintypes.FILETIME),
         ctypes.POINTER(wintypes.FILETIME),
     ]
+    kernel32.GetSystemTimes.argtypes = [ctypes.POINTER(wintypes.FILETIME)] * 3
+    kernel32.GetSystemTimes.restype = wintypes.BOOL
     kernel32.ProcessIdToSessionId.argtypes = [wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
     kernel32.GetTickCount64.restype = ctypes.c_ulonglong
     kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
@@ -166,6 +169,23 @@ def _filetime(value: wintypes.FILETIME) -> float:
 
 def _filetime_ticks(value: wintypes.FILETIME) -> int:
     return value.dwHighDateTime << 32 | value.dwLowDateTime
+
+
+def _cpu_times(kernel32):
+    idle, kernel, user = (wintypes.FILETIME() for _ in range(3))
+    if kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+        return _filetime_ticks(kernel) + _filetime_ticks(user), _filetime_ticks(idle)
+    return None
+
+
+def _cpu_percent(before, current):
+    if before is None or current is None:
+        return None
+    total = current[0] - before[0]
+    idle = current[1] - before[1]
+    if total <= 0 or not 0 <= idle <= total:
+        return None
+    return round((total - idle) / total * 100, 1)
 
 
 def _percent(delta_seconds: float, span_seconds: float, cores: int) -> float:
@@ -332,6 +352,7 @@ def _refresh() -> None:
     libs = _libs()
     wall = time.perf_counter()
     cores = os.cpu_count() or 1
+    cpu_times = _cpu_times(libs["kernel32"]) if cores <= 64 else None
 
     entries: list[dict] = []
     current: dict[int, tuple] = {}
@@ -374,7 +395,10 @@ def _refresh() -> None:
             entry["pid"]: _process_identity(entry) for entry in entries if entry["can_stop"]
         }
         ready = span > 0.05
-        cpu_val = _percent(total_delta, span, cores) if ready else 0.0
+        cpu_val = _cpu_percent(_state.get("previous_cpu"), cpu_times)
+        _state["previous_cpu"] = cpu_times
+        if cpu_val is None:
+            cpu_val = _percent(total_delta, span, cores) if ready else 0.0
         mem_info = _memory(libs)
         history = _state.get("history", [])
         if ready:
@@ -413,6 +437,12 @@ _state: dict = {
 
 def _loop() -> None:
     while True:
+        with _state["lock"]:
+            now = time.monotonic()
+            if now - _state.get("requested", now) > IDLE_TIMEOUT:
+                _state.update(thread=None, latest=None, allowed={}, previous={}, previous_cpu=None,
+                              previous_time=0.0, history=[])
+                return
         try:
             _refresh()
         except Exception:  # noqa: BLE001 — фоновая нить не должна падать молча в никуда
@@ -423,6 +453,7 @@ def _loop() -> None:
 
 def _ensure_sampler() -> None:
     with _state["lock"]:
+        _state["requested"] = time.monotonic()
         if _state["thread"] is None:
             thread = threading.Thread(target=_loop, name="hub-monitor", daemon=True)
             _state["thread"] = thread

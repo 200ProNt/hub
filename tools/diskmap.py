@@ -344,12 +344,11 @@ def _prepare_scan(folder, allow_volume_root, control):
         raise ScanError("Системная папка защищена: корень диска можно посчитать в локальной карте диска")
     try:
         root = candidate if volume else fileguard.check_safe_folder(folder)
-        _parents(root)
         if volume:
+            _parents(root)
             resolved = root.resolve(strict=True)
             if not _drive_root(resolved):
                 fileguard.check_safe_folder(resolved)
-                _parents(resolved)
     except fileguard.GuardError as exc:
         raise ScanError(str(exc)) from exc
     except OSError as exc:

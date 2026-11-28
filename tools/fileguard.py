@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import stat as stat_module
 import sys
@@ -30,6 +31,14 @@ def is_link(info) -> bool:
 def identity(info) -> tuple:
     """Отпечаток файла: если хоть что-то изменилось, это уже другой файл."""
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def local_path(path: Path | str) -> Path:
+    absolute = Path(os.path.abspath(Path(path).expanduser()))
+    if sys.platform == "win32" and (len(absolute.drive) != 2 or
+                                   ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(absolute.anchor)) not in (2, 3)):
+        raise GuardError("Выбери локальный диск")
+    return absolute
 
 
 def get_system_directories() -> set[Path]:
@@ -105,16 +114,12 @@ def is_system_path(path: Path) -> bool:
 
 
 def check_safe_folder(folder: Path | str) -> Path:
-    """Проверяет папку: она должна существовать, быть директорией, не быть ссылкой и не быть системной."""
+    """Проверяет каталог и все компоненты пути до него."""
     raw = Path(os.path.abspath(Path(folder).expanduser()))
-    if not raw.exists():
-        raise GuardError("Такой папки нет — проверь путь")
-    if not raw.is_dir():
-        raise GuardError("Это файл, а нужна папка")
-
-    info = raw.lstat()
-    if stat_module.S_ISLNK(info.st_mode) or is_link(info):
-        raise GuardError("Папка или её родитель — ссылка; выбери обычную папку")
+    try:
+        parents(raw)
+    except FileNotFoundError as exc:
+        raise GuardError("Такой папки нет — проверь путь") from exc
 
     if is_system_path(raw):
         raise GuardError("Системная папка защищена: системные каталоги нельзя выбирать для работы")
@@ -125,10 +130,12 @@ def check_safe_folder(folder: Path | str) -> Path:
 def parents(path: Path) -> tuple:
     """Отпечатки папки и всех её родителей — чтобы переименование не прошло незаметно."""
     identities = []
-    for parent in (path, *path.parents):
+    for parent in reversed((path, *path.parents)):
         info = parent.lstat()
-        if stat_module.S_ISLNK(info.st_mode) or is_link(info) or not stat_module.S_ISDIR(info.st_mode):
+        if stat_module.S_ISLNK(info.st_mode) or is_link(info):
             raise GuardError("Папка или её родитель — ссылка; выбери обычную папку")
+        if not stat_module.S_ISDIR(info.st_mode):
+            raise GuardError("Это файл, а нужна папка")
         identities.append((str(parent), info.st_dev, info.st_ino))
-    return tuple(identities)
+    return tuple(reversed(identities))
 
